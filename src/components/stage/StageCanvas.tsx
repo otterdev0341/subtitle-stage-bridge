@@ -1,7 +1,20 @@
 import * as React from "react";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileVideo2, Languages, Move } from "lucide-react";
 import { moveRect, resizeFromCorner, type Corner, type LayerName, type LayerRect, type StageLayout } from "@/lib/stage-layout";
+
+function useHoldTransition(hold: StageLayout["hold"], cut: boolean) {
+  const [shown, setShown] = useState(hold);
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    if (hold) { setShown(hold); setLeaving(false); return undefined; }
+    if (cut) { setShown(null); return undefined; }
+    setLeaving(true);
+    const t = window.setTimeout(() => { setShown(null); setLeaving(false); }, 450);
+    return () => window.clearTimeout(t);
+  }, [hold?.id, hold?.target, cut]);
+  return { shown, leaving };
+}
 import { HoldSlide } from "./HoldSlide";
 
 type Props = {
@@ -21,6 +34,7 @@ const LABEL: Record<LayerName, string> = { presentation: "A · สไลด์",
 
 export function StageCanvas({ layout, streams, caption, editable, onSelect, onChangeLayer, stageRef, className, children }: Props) {
   const innerRef = useRef<HTMLDivElement | null>(null);
+  const [dragging, setDragging] = useState(false);
   const drag = useRef<{ name: LayerName; mode: "move" | Corner; sx: number; sy: number; start: LayerRect } | null>(null);
 
   const begin = (name: LayerName, mode: "move" | Corner) => (event: React.PointerEvent) => {
@@ -29,6 +43,7 @@ export function StageCanvas({ layout, streams, caption, editable, onSelect, onCh
     event.stopPropagation();
     onSelect?.(name);
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    setDragging(true);
     drag.current = { name, mode, sx: event.clientX, sy: event.clientY, start: layout.layers[name] };
   };
   const move = (event: React.PointerEvent) => {
@@ -39,14 +54,16 @@ export function StageCanvas({ layout, streams, caption, editable, onSelect, onCh
     const dy = (event.clientY - d.sy) / box.height * 100;
     onChangeLayer?.(d.name, d.mode === "move" ? moveRect(d.start, dx, dy) : resizeFromCorner(d.start, d.mode, dx, dy, event.shiftKey));
   };
-  const end = () => { drag.current = null; };
+  const end = () => { drag.current = null; setDragging(false); };
 
-  const holdTarget = layout.hold?.target;
+  const { shown, leaving } = useHoldTransition(layout.hold, layout.transition === "cut");
+  const holdTarget = shown?.target;
+  const animClass = `relay-hold-anim relay-hold-anim-${layout.transition ?? "fade"}${leaving ? " is-leaving" : ""}`;
   const names: LayerName[] = ["presentation", "translation"];
 
   return (
     <div ref={stageRef} className={`relay-stage-frame ${className ?? ""}`}>
-      <div ref={innerRef} className="relay-stage-box" style={{ aspectRatio: `${layout.aspect.w} / ${layout.aspect.h}` }}>
+      <div ref={innerRef} className={`relay-stage-box${dragging ? " is-dragging" : ""}`} style={{ aspectRatio: `${layout.aspect.w} / ${layout.aspect.h}` }}>
         {names.map((name) => {
           const rect = layout.layers[name];
           if (!rect.visible) return null;
@@ -62,7 +79,8 @@ export function StageCanvas({ layout, streams, caption, editable, onSelect, onCh
               onPointerUp={end}
               onPointerCancel={end}
             >
-              {holdTarget === name && layout.hold ? <HoldSlide id={layout.hold.id} texts={layout.holdTexts} /> : stream ? (
+              {holdTarget === name && shown && <div key={shown.id} className={`relay-stage-hold-layer ${animClass}`}><HoldSlide id={shown.id} texts={layout.holdTexts} /></div>}
+              {stream ? (
                 <video className="relay-stage-layer-video" style={{ objectFit: rect.fit ? "contain" : "cover", objectPosition: `${rect.cropX}% ${rect.cropY}%` }} autoPlay muted playsInline ref={(el) => { if (el && el.srcObject !== stream) el.srcObject = stream; }} />
               ) : name === "translation" && caption ? (
                 <div className="relay-stage-layer-caption" lang="th" style={{ "--caption-scale": String(layout.fontScale / 50) } as React.CSSProperties}>{caption}</div>
@@ -80,7 +98,7 @@ export function StageCanvas({ layout, streams, caption, editable, onSelect, onCh
             </div>
           );
         })}
-        {holdTarget === "stage" && layout.hold && <div className="relay-stage-hold-full"><HoldSlide id={layout.hold.id} texts={layout.holdTexts} /></div>}
+        {holdTarget === "stage" && shown && <div key={shown.id} className={`relay-stage-hold-full ${animClass}`}><HoldSlide id={shown.id} texts={layout.holdTexts} /></div>}
         {children}
       </div>
     </div>

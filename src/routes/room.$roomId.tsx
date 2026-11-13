@@ -1,14 +1,15 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowUpDown, BringToFront, Check, ChevronDown, CircleStop, Crop, Expand, Eye, EyeOff, FileVideo2, Languages, Layers, LayoutTemplate, Link2, LoaderCircle, MonitorUp, Pencil, RadioTower, Save, SendToBack, Settings2, Share2, Trash2, Type, Users, X } from "lucide-react";
+import { ArrowUpDown, BringToFront, Check, ChevronDown, CircleStop, Crop, Expand, Eye, EyeOff, FileVideo2, Languages, Layers, Link2, LoaderCircle, MonitorUp, Pencil, RadioTower, Save, SendToBack, Settings2, Share2, Trash2, Type, Users, X, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useBroadcastSession } from "@/lib/use-broadcast-session";
 import { StageCanvas } from "@/components/stage/StageCanvas";
 import { HoldSlide } from "@/components/stage/HoldSlide";
-import { ASPECT_PRESETS, BUILT_IN_TEMPLATES, HOLD_KEY, applyTemplate, bringToFront, defaultLayout, deleteTemplate, loadTemplates, saveTemplate, sendToBack, swapOrder, type HoldSlideId, type HoldTarget, type LayerName, type LayerRect, type StageLayout, type StageTemplate } from "@/lib/stage-layout";
+import { TemplatePreview } from "@/components/stage/TemplatePreview";
+import { ASPECT_PRESETS, BUILT_IN_TEMPLATES, HOLD_KEY, applyTemplate, bringToFront, defaultLayout, deleteTemplate, loadTemplates, saveTemplate, sendToBack, swapOrder, TRANSITIONS, type TransitionKind, type HoldSlideId, type HoldTarget, type LayerName, type LayerRect, type StageLayout, type StageTemplate } from "@/lib/stage-layout";
 import { roomInviteUrl, roomPath } from "@/lib/room-links";
 
 type RoomView = "director" | "presentation" | "translation" | "stage";
@@ -173,6 +174,11 @@ function StationFooter({ connected, roleText, stopSharing }: { connected: boolea
   return <footer className="relay-translation-footbar"><span><span className={connected ? "relay-live-dot" : "relay-status-wait"} /> {roleText} · {connected ? "กำลังถ่ายทอด" : "ยังไม่เชื่อมต่อ"}</span><Button variant="ghost" className="relay-icon-action" onClick={stopSharing} title="หยุดแชร์หน้าจอ" aria-label="หยุดแชร์หน้าจอ"><CircleStop size={17} /></Button></footer>;
 }
 
+type PanelTab = "connect" | "layer" | "stage" | "hold";
+const PANEL_TABS: Array<{ id: PanelTab; label: string }> = [
+  { id: "connect", label: "เชื่อมต่อ" }, { id: "layer", label: "ปรับจอ" }, { id: "stage", label: "เทมเพลต" }, { id: "hold", label: "พักจอ" },
+];
+
 function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolean }) {
   const [layout, setLayout] = useState<StageLayout>(defaultLayout);
   const [copied, setCopied] = useState<RoomView | null>(null);
@@ -183,6 +189,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
   const [templateName, setTemplateName] = useState("");
   const [holdTarget, setHoldTarget] = useState<HoldTarget>("stage");
   const [editingHold, setEditingHold] = useState<HoldSlideId | null>(null);
+  const [tab, setTab] = useState<PanelTab>("connect");
   const navigate = useNavigate();
   const stageRef = useRef<HTMLDivElement | null>(null);
 
@@ -238,6 +245,18 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     window.localStorage.setItem(HOLD_KEY, JSON.stringify(holdTexts));
     return { ...l, holdTexts };
   });
+
+  useEffect(() => {
+    if (stageOnly) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (document.activeElement as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const map: Record<string, HoldSlideId | null> = { "1": "wait", "2": "title", "3": "technical", "0": null };
+      if (e.key in map) { e.preventDefault(); setLayout((l) => ({ ...l, hold: map[e.key] ? { id: map[e.key]!, target: holdTarget } : null })); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [stageOnly, holdTarget]);
 
   const copyLink = async (view: RoomView) => {
     try {
@@ -301,19 +320,39 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
             <span className="relay-status-hint">ลากกลางกรอบเพื่อย้าย · ลากจุดมุมเพื่อย่อ/ขยาย · กด Shift เพื่อคงสัดส่วน</span>
           </div>
 
+          <div className="relay-quick-hold" role="toolbar" aria-label="สลับสไลด์พักจอด่วน">
+            <span className="relay-quick-hold-label"><Zap size={13} /> สลับด่วน</span>
+            <button type="button" className={`relay-quick-btn is-live-btn${!layout.hold ? " is-active" : ""}`} onClick={() => setHold(null)}><span className="relay-live-dot" /> LIVE <kbd>0</kbd></button>
+            {(Object.keys(layout.holdTexts) as HoldSlideId[]).map((id, i) => (
+              <button key={id} type="button" className={`relay-quick-btn${layout.hold?.id === id ? " is-active" : ""}`} onClick={() => setHold(layout.hold?.id === id ? null : id)}>{layout.holdTexts[id].title} <kbd>{i + 1}</kbd></button>
+            ))}
+            <select className="relay-quick-select" value={holdTarget} aria-label="แสดงสไลด์พักจอที่" onChange={(e) => { const v = e.target.value as HoldTarget; setHoldTarget(v); setLayout((l) => l.hold ? { ...l, hold: { ...l.hold, target: v } } : l); }}>
+              <option value="stage">ทั้งเวที</option><option value="presentation">แทนจอ A</option><option value="translation">แทนจอ B</option>
+            </select>
+            <select className="relay-quick-select" value={layout.transition} aria-label="เอฟเฟกต์เปลี่ยนภาพ" onChange={(e) => setLayout((l) => ({ ...l, transition: e.target.value as TransitionKind }))}>
+              {TRANSITIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+          </div>
+
           {error && <p className="relay-error-notice" role="status">{error}</p>}
           <div className="relay-phone-controls-trigger"><Button variant="outline" className="relay-phone-tools" onClick={() => setMobileTools((v) => !v)}><Settings2 size={16} /> จัดการภาพและลิงก์ <ChevronDown size={15} /></Button></div>
         </section>
 
         <aside className={`relay-control-panel ${mobileTools ? "relay-control-panel-open" : ""}`}>
           <div className="relay-panel-heading"><div><span className="relay-overline-small">CONTROL ROOM</span><h2>จัดการเวที</h2></div><Button variant="ghost" className="relay-panel-close" aria-label="ปิดเมนูควบคุม" onClick={() => setMobileTools(false)}><X size={17} /></Button></div>
+          <div className="relay-panel-tabs" role="tablist">
+            {PANEL_TABS.map((t) => <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={`relay-panel-tab${tab === t.id ? " is-active" : ""}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
+          </div>
 
+          {tab === "connect" && (
           <section className="relay-panel-section relay-share-section">
             <div className="relay-panel-section-title"><span>01</span><h3>เชื่อมต่อจอ</h3></div>
             <ShareControlCard number="A" role="presentation" isConnected={Boolean(streams.presentation)} href={shareWindow("presentation")} copied={copied === "presentation"} copy={() => void copyLink("presentation")} />
             <ShareControlCard number="B" role="translation" isConnected={Boolean(streams.translation)} href={shareWindow("translation")} copied={copied === "translation"} copy={() => void copyLink("translation")} />
           </section>
+          )}
 
+          {tab === "layer" && (
           <section className="relay-panel-section">
             <div className="relay-panel-section-title"><span>02</span><h3>ปรับจอ {active === "presentation" ? "A · สไลด์" : "B · คำแปล"}</h3></div>
             <div className="relay-control-tool-row">
@@ -331,7 +370,9 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
             </div>
             {active === "translation" && <ControlSlider label="ขนาดตัวอักษร (ข้อความสำรอง)" value={layout.fontScale} min={25} max={90} onChange={(v) => setLayout((l) => ({ ...l, fontScale: v }))} icon={<Type size={14} />} />}
           </section>
+          )}
 
+          {tab === "stage" && (
           <section className="relay-panel-section">
             <div className="relay-panel-section-title"><span>03</span><h3>ความละเอียดเวที</h3></div>
             <div className="relay-aspect-grid">
@@ -346,13 +387,15 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
               <input type="number" min={240} max={4320} value={layout.aspect.h} aria-label="ความสูง (พิกเซล)" onChange={(e) => { const h = Number(e.target.value); if (h > 0) setLayout((l) => ({ ...l, aspect: { ...l.aspect, h } })); }} />
             </div>
           </section>
+          )}
 
+          {tab === "stage" && (
           <section className="relay-panel-section">
             <div className="relay-panel-section-title"><span>04</span><h3>เทมเพลต</h3></div>
             <div className="relay-template-list">
               {allTemplates.map((t) => (
                 <div key={t.id} className="relay-template-item">
-                  <button type="button" onClick={() => setLayout((l) => applyTemplate(l, t))}><LayoutTemplate size={14} /> {t.name}</button>
+                  <button type="button" className="relay-template-apply" onClick={() => setLayout((l) => applyTemplate(l, t))}><TemplatePreview template={t} /><span>{t.name}<small>{t.layout.aspect.w}×{t.layout.aspect.h}</small></span></button>
                   {!t.builtIn && <button type="button" aria-label={`ลบเทมเพลต ${t.name}`} onClick={() => setTemplates(deleteTemplate(window.localStorage, t.id))}><Trash2 size={13} /></button>}
                 </div>
               ))}
@@ -362,7 +405,9 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
               <Button type="submit" variant="outline" disabled={!templateName.trim()}><Save size={14} /> บันทึก</Button>
             </form>
           </section>
+          )}
 
+          {tab === "hold" && (
           <section className="relay-panel-section">
             <div className="relay-panel-section-title"><span>05</span><h3>สไลด์พักจอ</h3></div>
             <div className="relay-hold-target" role="group" aria-label="แสดงที่">
@@ -389,6 +434,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
             </div>
             {layout.hold && <Button className="relay-stage-button w-full" onClick={() => setHold(null)}><RadioTower size={15} /> กลับสู่การถ่ายทอด</Button>}
           </section>
+          )}
 
           <footer className="relay-panel-footer"><span><LockIcon /> ข้อมูลภาพส่งตรงระหว่างเครื่อง</span><a href={shareWindow("stage")} target="_blank" rel="noreferrer">เปิดหน้าจอฉาย <Link2 size={13} /></a></footer>
         </aside>

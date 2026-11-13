@@ -11,8 +11,13 @@ export type StageLayout = {
   fontScale: number;
   hold: { id: HoldSlideId; target: HoldTarget } | null;
   holdTexts: HoldTexts;
+  transition: TransitionKind;
 };
-export type StageTemplate = { id: string; name: string; builtIn?: boolean; layout: Omit<StageLayout, "hold" | "holdTexts" | "activeLayer"> };
+export type TransitionKind = "fade" | "slide" | "zoom" | "cut";
+export const TRANSITIONS: Array<{ id: TransitionKind; label: string }> = [
+  { id: "fade", label: "จางเข้า" }, { id: "slide", label: "เลื่อนขึ้น" }, { id: "zoom", label: "ซูม" }, { id: "cut", label: "ตัดทันที" },
+];
+export type StageTemplate = { id: string; name: string; builtIn?: boolean; layout: Omit<StageLayout, "hold" | "holdTexts" | "activeLayer" | "transition"> };
 
 export const MIN_SIZE = 8;
 export const ASPECT_PRESETS = [
@@ -42,6 +47,7 @@ export const defaultLayout = (): StageLayout => ({
   activeLayer: "translation",
   hold: null,
   holdTexts: structuredClone(DEFAULT_HOLD_TEXTS),
+  transition: "fade",
 });
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
