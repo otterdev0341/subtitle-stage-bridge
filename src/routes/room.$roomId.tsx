@@ -6,6 +6,7 @@ import { Check, ChevronDown, CircleStop, Crop, Expand, Eye, EyeOff, FileVideo2, 
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useBroadcastSession, type BroadcastRole } from "@/lib/use-broadcast-session";
+import { roomInviteUrl, roomPath } from "@/lib/room-links";
 
 type RoomView = "director" | "presentation" | "translation" | "stage";
 
@@ -89,7 +90,7 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
   };
 
   const copyInvite = async () => {
-    await navigator.clipboard.writeText(`${window.location.origin}/room/${roomId}?view=${role}`);
+    await navigator.clipboard.writeText(roomInviteUrl(window.location.origin, roomId, role));
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
   };
@@ -178,7 +179,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
   const [visible, setVisible] = useState(true);
   const [geometry, setGeometry] = useState<OverlayGeometry>(DEFAULT_GEOMETRY);
   const [fontScale, setFontScale] = useState(50);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<RoomView | null>(null);
   const [fullScreen, setFullScreen] = useState(false);
   const [activeDrag, setActiveDrag] = useState(false);
   const [screenStreams, setScreenStreams] = useState<Record<LayerName, MediaStream | null>>({ presentation: null, translation: null });
@@ -339,17 +340,17 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     }));
   };
 
-  const copyLink = async (url: string) => {
+  const copyLink = async (view: RoomView) => {
     try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
+      await navigator.clipboard.writeText(roomInviteUrl(window.location.origin, roomId, view));
+      setCopied(view);
+      window.setTimeout(() => setCopied((current) => current === view ? null : current), 1800);
     } catch {
       setLiveError("คัดลอกลิงก์ไม่สำเร็จ โปรดคัดลอกจากแถบที่อยู่โดยตรง");
     }
   };
 
-  const shareWindow = (view: RoomView) => `/room/${encodeURIComponent(roomId)}?view=${view}`;
+  const shareWindow = (view: RoomView) => roomPath(roomId, view);
 
   const layerActions = { presentation, translation };
   const variableGeometry: React.CSSProperties = {
@@ -449,8 +450,8 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
 
           <section className="relay-panel-section relay-share-section">
             <div className="relay-panel-section-title"><span>01</span><h3>เชื่อมต่อจอ</h3></div>
-            <ShareControlCard number="A" role="presentation" isConnected={Boolean(presentation)} href={shareWindow("presentation")} copy={() => void copyLink(shareWindow("presentation"))} />
-            <ShareControlCard number="B" role="translation" isConnected={Boolean(translation)} href={shareWindow("translation")} copy={() => void copyLink(shareWindow("translation"))} />
+            <ShareControlCard number="A" role="presentation" isConnected={Boolean(presentation)} href={shareWindow("presentation")} copied={copied === "presentation"} copy={() => void copyLink("presentation")} />
+            <ShareControlCard number="B" role="translation" isConnected={Boolean(translation)} href={shareWindow("translation")} copied={copied === "translation"} copy={() => void copyLink("translation")} />
           </section>
 
           <section className="relay-panel-section relay-inputs-section">
@@ -507,7 +508,7 @@ function StagePlaceholder() {
   return <div className="relay-stage-placeholder"><div className="relay-placeholder-corner relay-placeholder-top-left" /><div className="relay-placeholder-corner relay-placeholder-bottom-right" /><span className="relay-placeholder-mark"><RadioTower size={21} /></span><p>ภาพเวทีแสดงตรงนี้</p><span className="relay-placeholder-subtitle">ส่งลิงก์ให้เครื่องพรีเซนต์เพื่อเริ่มถ่ายทอด</span></div>;
 }
 
-function ShareControlCard({ number, role, isConnected, href, copy }: { number: string; role: "presentation" | "translation"; isConnected: boolean; href: string; copy: () => void }) {
+function ShareControlCard({ number, role, isConnected, href, copied, copy }: { number: string; role: "presentation" | "translation"; isConnected: boolean; href: string; copied: boolean; copy: () => void }) {
   const title = role === "presentation" ? "จอพรีเซนต์" : "จอคำบรรยาย";
   return (
     <div className="relay-share-control">
@@ -515,7 +516,7 @@ function ShareControlCard({ number, role, isConnected, href, copy }: { number: s
       <div className="relay-share-control-info"><strong>{title}</strong><small>{isConnected ? "กำลังส่งภาพ" : role === "presentation" ? "แชร์สไลด์" : "พิมพ์คำแปลและแชร์จอ"}</small></div>
       <span className={`relay-connection-light${isConnected ? " is-online" : ""}`} />
       <Button asChild variant="ghost" size="icon" title={`เปิดลิงก์${title}`}><a href={href} target="_blank" rel="noreferrer" aria-label={`เปิดลิงก์${title}`}><Link2 size={15} /></a></Button>
-      <Button variant="ghost" size="icon" title={`คัดลอกลิงก์${title}`} onClick={copy} aria-label={`คัดลอกลิงก์${title}`}><Share2 size={15} /></Button>
+      <Button variant="outline" className="relay-copy-screen-link" title={`คัดลอกลิงก์${title}`} onClick={copy} aria-label={`คัดลอกลิงก์${title}`}>{copied ? <Check size={15} /> : <Share2 size={15} />}{copied ? "คัดลอกแล้ว" : "คัดลอกลิงก์"}</Button>
     </div>
   );
 }

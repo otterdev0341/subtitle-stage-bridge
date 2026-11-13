@@ -30,3 +30,4 @@ use the editor.
 <!-- LOVABLE:END -->
 
 - Broadcast rooms use shared Lovable Cloud Realtime channels for short-lived WebRTC signaling; screen video stays peer-to-peer so captures are neither stored nor relayed through the app.
+- Generate copied room invitations with the shared URL helper and the browser's web origin inside click handlers; keep navigation paths relative so SSR stays safe and recipients receive complete web links.
