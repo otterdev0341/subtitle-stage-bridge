@@ -16,6 +16,7 @@ function useHoldTransition(hold: StageLayout["hold"], cut: boolean) {
   return { shown, leaving };
 }
 import { HoldSlide } from "./HoldSlide";
+import { CroppedVideo } from "./CroppedVideo";
 
 type Props = {
   layout: StageLayout;
@@ -27,21 +28,24 @@ type Props = {
   stageRef?: React.RefObject<HTMLDivElement | null>;
   className?: string;
   children?: React.ReactNode;
+  onEditStart?: () => void;
+  onEditEnd?: () => void;
 };
 
 const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
 const LABEL: Record<LayerName, string> = { presentation: "จอ A", translation: "จอ B" };
 
-export function StageCanvas({ layout, streams, caption, editable, onSelect, onChangeLayer, stageRef, className, children }: Props) {
+export function StageCanvas({ layout, streams, caption, editable, onSelect, onChangeLayer, stageRef, className, children, onEditStart, onEditEnd }: Props) {
   const innerRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ name: LayerName; mode: "move" | Corner; sx: number; sy: number; start: LayerRect } | null>(null);
 
   const begin = (name: LayerName, mode: "move" | Corner) => (event: React.PointerEvent) => {
-    if (!editable) return;
+    if (!editable || layout.layers[name].locked) return;
     event.preventDefault();
     event.stopPropagation();
     onSelect?.(name);
+    onEditStart?.();
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     setDragging(true);
     drag.current = { name, mode, sx: event.clientX, sy: event.clientY, start: layout.layers[name] };
@@ -52,12 +56,12 @@ export function StageCanvas({ layout, streams, caption, editable, onSelect, onCh
     if (!d || !box) return;
     const dx = (event.clientX - d.sx) / box.width * 100;
     const dy = (event.clientY - d.sy) / box.height * 100;
-    let next = d.mode === "move" ? moveRect(d.start, dx, dy) : resizeFromCorner(d.start, d.mode, dx, dy, event.shiftKey);
+    let next = d.mode === "move" ? moveRect(d.start, dx, dy) : resizeFromCorner(d.start, d.mode, dx, dy, event.shiftKey || !!d.start.lockAspect);
     const regions = arrangementRegions(layout.arrangement, layout.split, layout.splitSwap);
     if (regions) next = clampToRegion(next, regions[d.name]);
     onChangeLayer?.(d.name, next);
   };
-  const end = () => { drag.current = null; setDragging(false); };
+  const end = () => { if (drag.current) onEditEnd?.(); drag.current = null; setDragging(false); };
 
   const { shown, leaving } = useHoldTransition(layout.hold, layout.transition === "cut");
   const holdTarget = shown?.target;
@@ -66,7 +70,7 @@ export function StageCanvas({ layout, streams, caption, editable, onSelect, onCh
 
   return (
     <div ref={stageRef} className={`relay-stage-frame ${className ?? ""}`}>
-      <div ref={innerRef} className={`relay-stage-box${dragging ? " is-dragging" : ""}`} style={{ aspectRatio: `${layout.aspect.w} / ${layout.aspect.h}` }}>
+      <div ref={innerRef} className={`relay-stage-box${dragging ? " is-dragging" : ""}`} style={{ aspectRatio: `${layout.aspect.w} / ${layout.aspect.h}`, "--stage-fit-width": `${100 * layout.aspect.w / layout.aspect.h}cqh`, "--stage-fit-height": `${100 * layout.aspect.h / layout.aspect.w}cqw` } as React.CSSProperties}>
         {names.map((name) => {
           const rect = layout.layers[name];
           if (!rect.visible) return null;
@@ -81,10 +85,11 @@ export function StageCanvas({ layout, streams, caption, editable, onSelect, onCh
               onPointerMove={move}
               onPointerUp={end}
               onPointerCancel={end}
+              onLostPointerCapture={end}
             >
               {holdTarget === name && shown && <div key={shown.id} className={`relay-stage-hold-layer ${animClass}`}><HoldSlide id={shown.id} texts={layout.holdTexts} image={layout.holdImages?.[shown.id]} /></div>}
               {stream ? (
-                <video className="relay-stage-layer-video" style={{ objectFit: rect.fit ? "contain" : "cover", objectPosition: `${rect.cropX}% ${rect.cropY}%`, transform: `scale(${(rect.zoom ?? 100) / 100})`, transformOrigin: `${rect.cropX}% ${rect.cropY}%` }} autoPlay muted playsInline ref={(el) => { if (el && el.srcObject !== stream) el.srcObject = stream; }} />
+                <div className="relay-stage-media"><CroppedVideo stream={stream} {...(rect.sourceCrop ? { crop: rect.sourceCrop } : {})} fit={rect.fit} zoom={rect.zoom ?? 100} x={rect.cropX} y={rect.cropY} /></div>
               ) : name === "translation" && caption ? (
                 <div className="relay-stage-layer-caption" lang="th" style={{ "--caption-scale": String(layout.fontScale / 50) } as React.CSSProperties}>{caption}</div>
               ) : editable ? (
@@ -93,8 +98,9 @@ export function StageCanvas({ layout, streams, caption, editable, onSelect, onCh
               {editable && (
                 <>
                   <span className="relay-stage-layer-tag">{LABEL[name]}{active && <Move size={11} />}</span>
-                  {active && CORNERS.map((c) => (
-                    <span key={c} role="button" aria-label={`ลากมุมเพื่อปรับขนาด ${LABEL[name]}`} className={`relay-stage-handle relay-stage-handle-${c}`} onPointerDown={begin(name, c)} onPointerMove={move} onPointerUp={end} onPointerCancel={end} />
+                  {active && !rect.locked && CORNERS.map((c) => (
+                    <span key={c} role="button" aria-label={`ลากมุมเพื่อปรับขนาด ${LABEL[name]}`} className={`relay-stage-handle relay-stage-handle-${c}`} onPointerDown={begin(name, c)} onPointerMove={move} onPointerUp={end} onPointerCancel={end}
+              onLostPointerCapture={end} />
                   ))}
                 </>
               )}
@@ -102,6 +108,7 @@ export function StageCanvas({ layout, streams, caption, editable, onSelect, onCh
           );
         })}
         {holdTarget === "stage" && shown && <div key={shown.id} className={`relay-stage-hold-full ${animClass}`}><HoldSlide id={shown.id} texts={layout.holdTexts} image={layout.holdImages?.[shown.id]} /></div>}
+        {layout.blackout && <div className="relay-blackout" />}
         {children}
       </div>
     </div>

@@ -1,4 +1,5 @@
 export type CropRect = { x: number; y: number; w: number; h: number }; // percent of source frame
+export type CropHandle = "nw" | "ne" | "sw" | "se" | "n" | "s" | "w" | "e";
 export type CropShape = "free" | "full" | "16:9" | "4:3" | "1:1";
 export const CROP_SHAPES: Array<{ id: CropShape; label: string; ratio?: number }> = [
   { id: "full", label: "เต็มจอ" }, { id: "16:9", label: "16:9", ratio: 16 / 9 }, { id: "4:3", label: "4:3", ratio: 4 / 3 }, { id: "1:1", label: "1:1", ratio: 1 }, { id: "free", label: "อิสระ" },
@@ -34,13 +35,16 @@ export function fitAspect(r: CropRect, ratio: number, vw: number, vh: number): C
 }
 
 /** Resize from a corner while optionally keeping a pixel ratio. */
-export function resizeCrop(start: CropRect, corner: "nw" | "ne" | "sw" | "se", dx: number, dy: number, ratio: number | undefined, vw: number, vh: number): CropRect {
+export function resizeCrop(start: CropRect, corner: CropHandle, dx: number, dy: number, ratio: number | undefined, vw: number, vh: number): CropRect {
   const right = start.x + start.w, bottom = start.y + start.h;
   let l = start.x, t = start.y, r = right, b = bottom;
-  if (corner.includes("w")) l = clamp(l + dx, 0, right - MIN_CROP); else r = clamp(r + dx, l + MIN_CROP, 100);
-  if (corner.includes("n")) t = clamp(t + dy, 0, bottom - MIN_CROP); else b = clamp(b + dy, t + MIN_CROP, 100);
+  if (corner.includes("w")) l = clamp(l + dx, 0, right - MIN_CROP); else if (corner.includes("e")) r = clamp(r + dx, l + MIN_CROP, 100);
+  if (corner.includes("n")) t = clamp(t + dy, 0, bottom - MIN_CROP); else if (corner.includes("s")) b = clamp(b + dy, t + MIN_CROP, 100);
   let w = r - l, h = b - t;
   if (ratio) {
+    if (corner === "n" || corner === "s") {
+      w = Math.min(100 - l, h * vh * ratio / vw);
+    }
     h = (w * vw / ratio) / vh;
     if (corner.includes("n")) t = bottom - h;
     if (t < 0 || t + h > 100) { h = corner.includes("n") ? bottom : 100 - t; if (corner.includes("n")) t = 0; w = (h * vh * ratio) / vw; if (corner.includes("w")) l = right - w; }

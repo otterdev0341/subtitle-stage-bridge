@@ -964,3 +964,45 @@
 .relay-cropper-chip.is-active { background: oklch(0.88 0.17 110); color: oklch(0.2 0.03 150); border-color: transparent; }
 .relay-cropper-pause.is-active { background: oklch(0.7 0.18 40); color: oklch(0.99 0 0); }
 .relay-cropper-status { font-size: .74rem; opacity: .75; margin: 0; }
+/* Cropping and show controls */
+.relay-video-viewport { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; pointer-events: none; }
+.relay-video-content { position: absolute; overflow: hidden; }
+.relay-stage-media { width: 100%; height: 100%; overflow: hidden; pointer-events: none; }
+.relay-stage-layer.is-knockout { mix-blend-mode: screen; }
+.relay-stage-layer.is-knockout .relay-stage-media { background: #000; }
+.relay-blackout { position: absolute; inset: 0; background: #000; z-index: 30; }
+.relay-cropper-stage { margin: 12px auto; flex-shrink: 0; }
+.relay-cropper-video { pointer-events: none; }
+.relay-cropper-box { box-shadow: 0 0 0 100vmax #0009; }
+.relay-crop-output { width: 100%; max-height: none; background: #000; margin: 8px auto 16px; }
+.relay-send-status { padding: 24px; border: 1px solid var(--border); border-radius: 8px; }
+.relay-editor-tools, .relay-show-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.relay-editor-tools { margin: 12px 0; }
+.relay-editor-tools button, .relay-editor-tools select, .relay-display-fields input, .relay-quick-slots select { border: 1px solid var(--border); background: var(--background); color: var(--foreground); border-radius: 5px; padding: 7px 10px; }
+.relay-editor-tools button[aria-pressed=true] { background: var(--relay-accent); color: #08291c; }
+.relay-editor-tools button:disabled, .relay-quick-btn:disabled { opacity: .45; cursor: default; }
+.relay-editor-tools label { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.relay-composition-shell.relay-editor-viewport { display: block; overflow: auto; max-height: 65vh; padding: 12px; }
+.relay-editor-viewport .relay-stage-frame { max-width: none; }
+.relay-display-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0; }
+.relay-display-fields label, .relay-quick-slots label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; }
+.relay-display-fields input { width: 100%; }
+.relay-quick-slots { display: grid; gap: 10px; margin: 16px 0; }
+.relay-stage-crop-editor { border: 1px solid var(--border); padding: 10px; border-radius: 6px; font-size: 12px; }
+.relay-audience-controls { position: fixed; bottom: 12px; left: 12px; right: 12px; z-index: 50; padding: 12px; background: #10261ef2; border: 1px solid #ffffff30; border-radius: 8px; color: #fff; }
+.relay-audience-controls.is-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+.relay-audience-controls p { margin-top: 8px; font-size: 12px; }
+.relay-audience-controls .relay-quick-btn { color: #fff; border-color: #ffffff40; }
+.relay-audience-controls .relay-quick-btn.is-active { background: #3b7151; }
+.relay-audience-stage.is-idle, .relay-audience-stage.is-idle * { cursor: none !important; }
+.relay-show-buttons button:focus-visible, .relay-editor-tools button:focus-visible { outline: 2px solid var(--relay-accent); outline-offset: 2px; }
+.relay-cropper-handle-n { top: -6px; left: calc(50% - 6px); cursor: ns-resize; }
+.relay-cropper-handle-s { bottom: -6px; left: calc(50% - 6px); cursor: ns-resize; }
+.relay-cropper-handle-e { right: -6px; top: calc(50% - 6px); cursor: ew-resize; }
+.relay-cropper-handle-w { left: -6px; top: calc(50% - 6px); cursor: ew-resize; }
+.relay-audience-controls .relay-quick-btn { background: #183c2d; color: #fff; }
+.relay-audience-controls .relay-quick-btn:hover { background: #28583c; }
+.relay-audience-controls .relay-quick-btn.is-active { background: #3b7151; }
+.relay-audience-controls kbd { color: #fff; border-color: #ffffff80; }
+.relay-stage-frame:fullscreen, .relay-stage-frame-audience { container-type: size; background: #000; }
+.relay-stage-frame:fullscreen .relay-stage-box, .relay-stage-frame-audience .relay-stage-box { flex: none; width: min(100cqw, var(--stage-fit-width)); height: min(100cqh, var(--stage-fit-height)); max-width: none; max-height: none; }

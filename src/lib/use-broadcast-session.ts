@@ -3,11 +3,14 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { StageLayout } from "@/lib/stage-layout";
+import { isShowCommand, type ShowCommand } from "./show-controls";
 
 export type BroadcastRole = "director" | "presentation" | "translation" | "translation-display";
 type ParticipantRole = Exclude<BroadcastRole, "director">;
 type RoomMessage = {
-  action?: "hello" | "ready" | "left" | "offer" | "answer" | "candidate" | "caption" | "stage-peers" | "stage-connect" | "layout";
+  action?: "hello" | "ready" | "left" | "offer" | "answer" | "candidate" | "caption" | "stage-peers" | "stage-connect" | "layout" | "command" | "command-ack";
+  command?: ShowCommand;
+  requestId?: string;
   from?: string;
   to?: string;
   role?: BroadcastRole;
@@ -20,7 +23,12 @@ type RoomMessage = {
 type Participant = { id: string; role: ParticipantRole; stream?: MediaStream };
 export type BroadcastLayout = StageLayout;
 
-export function useBroadcastSession(roomId: string) {
+export function useBroadcastSession(roomId: string, onCommand?: (command: ShowCommand) => StageLayout) {
+  const commandHandler = useRef(onCommand);
+  commandHandler.current = onCommand;
+  const pendingCommands = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const handledCommands = useRef(new Set<string>());
+  const [commandPending, setCommandPending] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState("");
@@ -44,6 +52,10 @@ export function useBroadcastSession(roomId: string) {
   }, []);
 
   const stop = useCallback(() => {
+    pendingCommands.current.forEach(clearTimeout);
+    pendingCommands.current.clear();
+    handledCommands.current.clear();
+    setCommandPending(false);
     if (!activeRef.current) return;
     activeRef.current = false;
     if (handshakeTimerRef.current !== null) {
@@ -73,6 +85,19 @@ export function useBroadcastSession(roomId: string) {
   const sendLayout = useCallback((next: BroadcastLayout) => {
     layoutRef.current = next;
     broadcast({ action: "layout", from: selfIdRef.current, layout: next });
+  }, [broadcast]);
+
+  const sendCommand = useCallback((command: ShowCommand) => {
+    if (!activeRef.current || !channelRef.current) { setError("ยังไม่เชื่อมต่อห้อง"); return; }
+    const requestId = crypto.randomUUID();
+    setError("");
+    setCommandPending(true);
+    pendingCommands.current.set(requestId, setTimeout(() => {
+      pendingCommands.current.delete(requestId);
+      setCommandPending(pendingCommands.current.size > 0);
+      setError("หน้าควบคุมไม่ตอบรับคำสั่ง กรุณาตรวจว่าเปิดหน้าควบคุมอยู่แล้วลองใหม่");
+    }, 4000));
+    broadcast({ action: "command", from: selfIdRef.current, role: roleRef.current, command, requestId });
   }, [broadcast]);
 
   const start = useCallback(async (role: BroadcastRole, stream?: MediaStream) => {
@@ -131,6 +156,28 @@ export function useBroadcastSession(roomId: string) {
       const message = payload as RoomMessage;
       const selfId = selfIdRef.current;
       if (!message.action || message.from === selfId || !activeRef.current) return;
+
+      if (message.action === "command" && role === "director" && message.from && stageScreensRef.current.has(message.from) && isShowCommand(message.command) && typeof message.requestId === "string") {
+        if (!handledCommands.current.has(message.requestId)) {
+          if (handledCommands.current.size >= 128) handledCommands.current.delete(handledCommands.current.values().next().value!);
+          handledCommands.current.add(message.requestId);
+          const next = commandHandler.current?.(message.command);
+          if (next) {
+            layoutRef.current = next;
+            sendSignal({ action: "layout", from: selfId, layout: next });
+          }
+        }
+        sendSignal({ action: "command-ack", from: selfId, to: message.from, requestId: message.requestId, ...(layoutRef.current ? { layout: layoutRef.current } : {}) });
+        return;
+      }
+      if (message.action === "command-ack" && message.to === selfId && message.requestId) {
+        if (!pendingCommands.current.has(message.requestId)) return;
+        if (message.layout) setLayout(message.layout);
+        clearTimeout(pendingCommands.current.get(message.requestId));
+        pendingCommands.current.delete(message.requestId);
+        setCommandPending(pendingCommands.current.size > 0);
+        return;
+      }
 
       if (message.action === "caption" && typeof message.text === "string") {
         setCaption(message.text.slice(0, 500));
@@ -297,5 +344,5 @@ export function useBroadcastSession(roomId: string) {
 
   useEffect(() => () => stop(), [stop]);
 
-  return { participants, connected, error, caption, layout, start, stop, sendCaption, sendLayout, clearError: () => setError("") };
+  return { participants, connected, error, caption, layout, start, stop, sendCaption, sendLayout, sendCommand, commandPending, clearError: () => setError("") };
 }
