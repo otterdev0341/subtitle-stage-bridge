@@ -81,10 +81,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Botnoi Relay — ถ่ายทอดภาพและคำบรรยายสด" },
+      { title: "Botnoi Live Relay — ถ่ายทอดภาพและคำบรรยายสด" },
       { name: "description", content: "ส่งภาพพรีเซนต์และคำบรรยายสดจากสองเครื่อง แล้วจัดวางซ้อนบนเวทีเดียวกัน" },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Botnoi Relay — ถ่ายทอดภาพและคำบรรยายสด" },
+      { property: "og:title", content: "Botnoi Live Relay — ถ่ายทอดภาพและคำบรรยายสด" },
       { property: "og:description", content: "เชื่อมจอพรีเซนต์และจอแปลสดเข้ากับเวทีเดียว" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Botnoi Relay — ถ่ายทอดภาพและคำบรรยายสด" },
+      { title: "Botnoi Live Relay — ถ่ายทอดภาพและคำบรรยายสด" },
       { name: "description", content: "ส่งภาพพรีเซนต์และคำบรรยายสดจากสองเครื่อง แล้วจัดวางซ้อนบนเวทีเดียวกัน" },
-      { property: "og:title", content: "Botnoi Relay — ถ่ายทอดภาพและคำบรรยายสด" },
+      { property: "og:title", content: "Botnoi Live Relay — ถ่ายทอดภาพและคำบรรยายสด" },
       { property: "og:description", content: "เชื่อมจอพรีเซนต์และจอแปลสดเข้ากับเวทีเดียว" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -38,9 +38,9 @@ function Home() {
     <main className="relay-home min-h-screen px-5 py-6 sm:px-10 sm:py-9">
       <div className="mx-auto max-w-6xl">
         <header className="flex items-center justify-between">
-          <a href="/" className="relay-brand" aria-label="Botnoi Relay home">
+          <a href="/" className="relay-brand" aria-label="Botnoi Live Relay home">
             <span className="relay-brand-mark"><RadioTower size={18} strokeWidth={2.2} /></span>
-            <span>botnoi<span className="relay-brand-light">relay</span></span>
+            <span>botnoi<span className="relay-brand-light">live relay</span></span>
           </a>
           <div className="relay-live-label"><span className="relay-live-dot" /> LIVE BROADCAST</div>
         </header>
@@ -97,7 +97,7 @@ function Home() {
         </section>
 
         <footer className="relay-home-footer flex flex-wrap items-center justify-between gap-3 py-7">
-          <span>BOTNOI RELAY <span className="relay-footer-dot">·</span> LIVE COMPOSITION</span>
+          <span>BOTNOI LIVE RELAY <span className="relay-footer-dot">·</span> LIVE COMPOSITION</span>
           <span>การเชื่อมต่อเข้ารหัสระหว่างอุปกรณ์</span>
         </footer>
       </div>
