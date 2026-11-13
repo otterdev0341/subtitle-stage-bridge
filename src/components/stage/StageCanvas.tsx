@@ -30,7 +30,7 @@ type Props = {
 };
 
 const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
-const LABEL: Record<LayerName, string> = { presentation: "A · สไลด์", translation: "B · คำแปล" };
+const LABEL: Record<LayerName, string> = { presentation: "จอ A", translation: "จอ B" };
 
 export function StageCanvas({ layout, streams, caption, editable, onSelect, onChangeLayer, stageRef, className, children }: Props) {
   const innerRef = useRef<HTMLDivElement | null>(null);

@@ -50,7 +50,7 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
   const [screenMode, setScreenMode] = useState(false);
   const captionScreenRef = useRef<HTMLDivElement | null>(null);
   const { connected, participants, error, start, stop, sendCaption } = useBroadcastSession(roomId);
-  const roleText = role === "presentation" ? "ภาพพรีเซนต์" : "คำบรรยายแปล";
+  const roleText = role === "presentation" ? "จอ A" : "จอ B";
 
   useEffect(() => {
     if (role !== "translation" || !connected) return undefined;
@@ -100,7 +100,7 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
     window.setTimeout(() => setCopied(false), 1600);
   };
 
-  if (role === "translation" && screenMode) {
+  if (false && screenMode) {
     return (
     <main className="relay-translation-screen relay-translation-share-mode">
         <div className="relay-translation-topline"><span className="relay-live-dot" /><span>LIVE TRANSLATION</span><span className="relay-screen-room">{roomId.slice(0, 8).toUpperCase()}</span></div>
@@ -115,22 +115,22 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
   return (
     <main className={`relay-station relay-station-${role}`}>
       <header className="relay-station-header">
-        <Link to="/" className="relay-brand relay-brand-inverse" aria-label="กลับหน้าหลัก"><span className="relay-brand-mark"><RadioTower size={18} /></span><span>canvas<span className="relay-brand-light">relay</span></span></Link>
+        <Link to="/" className="relay-brand relay-brand-inverse" aria-label="กลับหน้าหลัก"><span className="relay-brand-mark"><RadioTower size={18} /></span><span>botnoi<span className="relay-brand-light">{" live relay"}</span></span></Link>
         <div className="relay-station-status"><span className={connected ? "relay-live-dot" : "relay-status-wait"} /> {connected ? "เชื่อมต่อห้องแล้ว" : "เตรียมอุปกรณ์"}</div>
       </header>
       <div className="relay-station-content">
-        {role === "presentation" ? (
+        {true ? (
           <>
-            <div className="relay-station-kicker"><FileVideo2 size={15} /> PRESENTATION INPUT</div>
-            <h1 className="relay-station-title">จอพรีเซนต์<br /><em>พร้อมส่งภาพ</em></h1>
+            <div className="relay-station-kicker"><FileVideo2 size={15} /> SCREEN {role === "presentation" ? "A" : "B"} INPUT</div>
+            <h1 className="relay-station-title">จอ {role === "presentation" ? "A" : "B"}<br /><em>พร้อมส่งภาพ</em></h1>
             <div className="relay-presentation-preview">
-              {stream ? <video className="relay-self-preview" autoPlay muted playsInline ref={(element) => { if (element && element.srcObject !== stream) element.srcObject = stream; }} /> : <div className="relay-presentation-placeholder"><MonitorUp size={38} /><span>แชร์สไลด์หรือหน้าต่างพรีเซนต์</span></div>}
+              {stream ? <video className="relay-self-preview" autoPlay muted playsInline ref={(element) => { if (element && element.srcObject !== stream) element.srcObject = stream; }} /> : <div className="relay-presentation-placeholder"><MonitorUp size={38} /><span>แชร์ทั้งหน้าจอ หน้าต่าง หรือแท็บใดก็ได้</span></div>}
             </div>
             <div className="relay-station-actions">
               <Button className="relay-stage-button" disabled={starting} onClick={stream ? stopSharing : startSharing}>{starting ? <LoaderCircle className="relay-spin" size={17} /> : stream ? <CircleStop size={17} /> : <MonitorUp size={17} />}{starting ? "กำลังเชื่อมต่อ" : stream ? "หยุดแชร์หน้าจอ" : "เลือกจอที่จะแชร์"}</Button>
               <Button variant="outline" className="relay-copy-invite" onClick={() => void copyInvite()}>{copied ? <Check size={16} /> : <Share2 size={16} />} {copied ? "คัดลอกแล้ว" : "คัดลอกลิงก์เข้าห้อง"}</Button>
             </div>
-            <p className="relay-station-footnote">เลือกทั้งหน้าจอหรือเฉพาะหน้าต่างสไลด์ จากนั้นคงแท็บนี้ไว้ระหว่างการนำเสนอ</p>
+            <p className="relay-station-footnote">เลือกทั้งหน้าจอหรือเฉพาะหน้าต่างที่ต้องการ จากนั้นคงแท็บนี้ไว้ระหว่างการนำเสนอ</p>
             <StationConnections connected={connected} participants={participants.length} error={error} />
           </>
         ) : (
@@ -351,7 +351,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
             <div className="relay-stage-quick-actions">
               <div className="relay-ab-switch" role="group" aria-label="เลือกจอที่จะปรับ">
                 <button type="button" className={`relay-ab-chip relay-ab-a${active === "presentation" ? " is-active" : ""}`} onClick={() => select("presentation")}>A · สไลด์</button>
-                <button type="button" className={`relay-ab-chip relay-ab-b${active === "translation" ? " is-active" : ""}`} onClick={() => select("translation")}>B · คำแปล</button>
+                <button type="button" className={`relay-ab-chip relay-ab-b${active === "translation" ? " is-active" : ""}`} onClick={() => select("translation")}>B · จอที่สอง</button>
               </div>
               <Button variant="ghost" className="relay-stage-action" onClick={() => setLayout((l) => ({ ...l, layers: swapOrder(l.layers) }))} title="สลับหน้า-หลัง"><ArrowUpDown size={15} /> <span>สลับ A↔B</span></Button>
               <Button variant="ghost" className="relay-icon-action" title="เต็มจอ" aria-label="เปิดเวทีเต็มจอ" onClick={toggleFullscreen}><Expand size={16} /></Button>
@@ -365,9 +365,9 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
           </div>
 
           <div className="relay-stage-statusline">
-            <div><span className={`relay-connection-light${streams.presentation ? " is-online" : ""}`} /><span>จอ A พรีเซนต์</span><b>{streams.presentation ? "LIVE" : "รอจอ"}</b></div>
+            <div><span className={`relay-connection-light${streams.presentation ? " is-online" : ""}`} /><span>จอ A</span><b>{streams.presentation ? "LIVE" : "รอจอ"}</b></div>
             <span className="relay-status-separator" />
-            <div><span className={`relay-connection-light${streams.translation ? " is-online" : ""}`} /><span>จอ B คำแปล</span><b>{streams.translation ? "LIVE" : "รอจอ"}</b></div>
+            <div><span className={`relay-connection-light${streams.translation ? " is-online" : ""}`} /><span>จอ B</span><b>{streams.translation ? "LIVE" : "รอจอ"}</b></div>
             <span className="relay-status-hint">ลากกลางกรอบเพื่อย้าย · ลากจุดมุมเพื่อย่อ/ขยาย · กด Shift เพื่อคงสัดส่วน</span>
           </div>
 
@@ -380,7 +380,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
             <span className="relay-status-separator" />
             {ARRANGEMENTS.map(([v, label]) => <button key={v} type="button" className={`relay-quick-btn${arrangement === v ? " is-active" : ""}`} onClick={() => arrange({ arrangement: v, split: layout.split ?? (v === "side" ? 70 : 75) })}>{label}</button>)}
             <span className="relay-status-separator" />
-            <button type="button" className={`relay-quick-btn relay-quick-toggle${layout.layers.translation.visible ? " is-active" : ""}`} onClick={() => toggleLayer("translation")} title="แสดง/ซ่อนจอคำแปลบนพรีเซนต์">{layout.layers.translation.visible ? <Eye size={13} /> : <EyeOff size={13} />} B {layout.layers.translation.visible ? "แสดง" : "ซ่อน"} <kbd>H</kbd></button>
+            <button type="button" className={`relay-quick-btn relay-quick-toggle${layout.layers.translation.visible ? " is-active" : ""}`} onClick={() => toggleLayer("translation")} title="แสดง/ซ่อนจอ B">{layout.layers.translation.visible ? <Eye size={13} /> : <EyeOff size={13} />} B {layout.layers.translation.visible ? "แสดง" : "ซ่อน"} <kbd>H</kbd></button>
             <button type="button" className={`relay-quick-btn relay-quick-toggle${layout.layers.presentation.visible ? " is-active" : ""}`} onClick={() => toggleLayer("presentation")} title="แสดง/ซ่อนจอพรีเซนต์">{layout.layers.presentation.visible ? <Eye size={13} /> : <EyeOff size={13} />} A <kbd>P</kbd></button>
             <select className="relay-quick-select" value={holdTarget} aria-label="แสดงสไลด์พักจอที่" onChange={(e) => { const v = e.target.value as HoldTarget; setHoldTarget(v); setLayout((l) => l.hold ? { ...l, hold: { ...l.hold, target: v } } : l); }}>
               <option value="stage">ทั้งเวที</option><option value="presentation">แทนจอ A</option><option value="translation">แทนจอ B</option>
@@ -431,9 +431,8 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
               <button type="button" className={`relay-fit-toggle${activeRect.knockout ? " is-on" : ""}`} onClick={() => updateLayer(active, { knockout: !activeRect.knockout })} title="ทำให้พื้นดำโปร่งใส เหมาะกับคำบรรยาย"><Layers size={14} /><span>{activeRect.knockout ? "ตัดพื้นดำ: เปิด" : "ตัดพื้นดำ: ปิด"}</span></button>
             </div>
             <ControlSlider label="ความโปร่งใส (Opacity)" value={activeRect.opacity ?? 100} min={10} max={100} onChange={(v) => updateLayer(active, { opacity: v })} icon={<Sun size={14} />} />
-            <ControlSlider label={active === "translation" ? "ขยายภาพ / ขนาดตัวอักษร" : "ขยายภาพ (ซูม)"} value={activeRect.zoom ?? 100} min={100} max={300} onChange={(v) => updateLayer(active, { zoom: v })} icon={<ZoomIn size={14} />} />
-            {active === "translation" && <p className="relay-hold-note">จอคำแปลเป็นภาพแชร์จอ จึงปรับขนาดตัวอักษรด้วยการซูม แล้วใช้ครอปเลือกตำแหน่งข้อความ</p>}
-            {active === "translation" && <ControlSlider label="ขนาดตัวอักษร (ข้อความสำรอง)" value={layout.fontScale} min={25} max={90} onChange={(v) => setLayout((l) => ({ ...l, fontScale: v }))} icon={<Type size={14} />} />}
+            <ControlSlider label="ขยายภาพ (ซูม)" value={activeRect.zoom ?? 100} min={100} max={300} onChange={(v) => updateLayer(active, { zoom: v })} icon={<ZoomIn size={14} />} />
+                        {active === "translation" && <ControlSlider label="ขนาดตัวอักษร (ข้อความสำรอง)" value={layout.fontScale} min={25} max={90} onChange={(v) => setLayout((l) => ({ ...l, fontScale: v }))} icon={<Type size={14} />} />}
           </section>
           )}
 
@@ -515,11 +514,11 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
 }
 
 function ShareControlCard({ number, role, isConnected, href, copied, copy }: { number: string; role: "presentation" | "translation"; isConnected: boolean; href: string; copied: boolean; copy: () => void }) {
-  const title = role === "presentation" ? "จอพรีเซนต์" : "จอคำบรรยาย";
+  const title = role === "presentation" ? "จอ A" : "จอ B";
   return (
     <div className="relay-share-control">
-      <span className="relay-share-control-number">{number}</span><span className="relay-share-control-mark">{role === "presentation" ? <FileVideo2 size={15} /> : <Languages size={15} />}</span>
-      <div className="relay-share-control-info"><strong>{title}</strong><small>{isConnected ? "กำลังส่งภาพ" : role === "presentation" ? "แชร์สไลด์" : "พิมพ์คำแปลและแชร์จอ"}</small></div>
+      <span className="relay-share-control-number">{number}</span><span className="relay-share-control-mark"><MonitorUp size={15} /></span>
+      <div className="relay-share-control-info"><strong>{title}</strong><small>{isConnected ? "กำลังส่งภาพ" : "แชร์หน้าจอใดก็ได้"}</small></div>
       <span className={`relay-connection-light${isConnected ? " is-online" : ""}`} />
       <Button asChild variant="ghost" size="icon" title={`เปิดลิงก์${title}`}><a href={href} target="_blank" rel="noreferrer" aria-label={`เปิดลิงก์${title}`}><Link2 size={15} /></a></Button>
       <Button variant="outline" className="relay-copy-screen-link" title={`คัดลอกลิงก์${title}`} onClick={copy} aria-label={`คัดลอกลิงก์${title}`}>{copied ? <Check size={15} /> : <Share2 size={15} />}{copied ? "คัดลอกแล้ว" : "คัดลอกลิงก์"}</Button>
