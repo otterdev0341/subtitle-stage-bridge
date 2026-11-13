@@ -233,10 +233,28 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     return () => document.removeEventListener("fullscreenchange", onFullscreen);
   }, []);
 
+  const audienceRef = useRef<HTMLElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showExit, setShowExit] = useState(true);
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  useEffect(() => {
+    if (!isFullscreen) { setShowExit(true); return undefined; }
+    let t = window.setTimeout(() => setShowExit(false), 2500);
+    const wake = () => { setShowExit(true); window.clearTimeout(t); t = window.setTimeout(() => setShowExit(false), 2500); };
+    window.addEventListener("pointermove", wake);
+    return () => { window.clearTimeout(t); window.removeEventListener("pointermove", wake); };
+  }, [isFullscreen]);
   const toggleFullscreen = () => {
     if (document.fullscreenElement) void document.exitFullscreen();
-    else void stageRef.current?.requestFullscreen();
+    else void (stageOnly ? audienceRef.current : stageRef.current)?.requestFullscreen();
   };
+  const exitButton = isFullscreen && (
+    <button type="button" className={`relay-exit-fullscreen${showExit ? "" : " is-hidden"}`} onClick={() => void document.exitFullscreen()} aria-label="ออกจากเต็มจอ"><X size={16} /> ออกจากเต็มจอ <kbd>Esc</kbd></button>
+  );
 
   const active = layout.activeLayer;
   const activeRect = layout.layers[active];
@@ -302,9 +320,9 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
 
   if (stageOnly) {
     return (
-      <main className="relay-audience-stage">
+      <main ref={audienceRef} className="relay-audience-stage">
         <StageCanvas layout={layout} streams={streams} caption={caption} editable={false} stageRef={stageRef} className="relay-stage-frame-audience" />
-        <Button variant="ghost" className="relay-audience-fullscreen" onClick={toggleFullscreen} title="เปิดเต็มจอ" aria-label="เปิดเต็มจอ"><Expand size={19} /></Button>
+        {isFullscreen ? exitButton : <Button variant="ghost" className="relay-audience-fullscreen" onClick={toggleFullscreen} title="เปิดเต็มจอ" aria-label="เปิดเต็มจอ"><Expand size={19} /></Button>}
       </main>
     );
   }
@@ -317,6 +335,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
       <header className="relay-director-topbar">
         <Link to="/" className="relay-brand" aria-label="กลับหน้าหลัก"><span className="relay-brand-mark"><RadioTower size={17} /></span><span>botnoi live<span className="relay-brand-light"> relay</span></span></Link>
         <div className="relay-room-topbar-middle"><span className={`relay-live-dot${session.connected ? "" : " relay-dot-muted"}`} /><span>{session.connected ? "ห้องถ่ายทอดสด" : "เชื่อมต่อห้อง"}</span><span className="relay-room-separator">/</span><span>{roomId.slice(0, 8).toUpperCase()}</span></div>
+              {exitButton}
         <div className="relay-director-top-actions">
           <span className="relay-participant-count"><Users size={15} /> {participants.filter((p) => p.stream).length}</span>
           <Button asChild variant="outline" className="relay-share-room-btn"><a href={shareWindow("stage")} target="_blank" rel="noreferrer"><Expand size={15} /> เปิดจอฉาย</a></Button>

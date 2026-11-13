@@ -937,3 +937,6 @@
 .relay-hold-note { margin: .4rem 0; font-size: .72rem; line-height: 1.4; opacity: .75; }
 .relay-hold-error { color: var(--destructive); opacity: 1; }
 .relay-quick-toggle:not(.is-active) { opacity: .6; text-decoration: line-through; }
+.relay-exit-fullscreen { position: absolute; z-index: 90; top: 16px; right: 16px; display: inline-flex; align-items: center; gap: .4rem; padding: .5rem .85rem; border-radius: 999px; border: 1px solid color-mix(in oklab, var(--relay-canvas-text) 30%, transparent); background: color-mix(in oklab, var(--relay-canvas) 75%, transparent); color: var(--relay-canvas-text); font-size: .8rem; backdrop-filter: blur(6px); cursor: pointer; transition: opacity .3s; }
+.relay-exit-fullscreen kbd { font-size: .65rem; opacity: .7; }
+.relay-exit-fullscreen.is-hidden { opacity: 0; pointer-events: none; }
