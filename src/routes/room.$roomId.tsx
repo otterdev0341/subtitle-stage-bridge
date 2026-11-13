@@ -6,7 +6,7 @@ import { ArrowUpDown, BringToFront, Check, ChevronDown, CircleStop, Crop, Expand
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useBroadcastSession } from "@/lib/use-broadcast-session";
-import { supabase } from "@/integrations/supabase/client";
+import { uploadHoldImage as uploadHoldImageFn } from "@/lib/hold-images.functions";
 import { StageCanvas } from "@/components/stage/StageCanvas";
 import { HoldSlide } from "@/components/stage/HoldSlide";
 import { TemplatePreview } from "@/components/stage/TemplatePreview";
@@ -258,12 +258,10 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     if (file.size > HOLD_IMAGE_MAX_BYTES) { setUploadError("ไฟล์ใหญ่เกิน 5 MB"); return; }
     setUploading(id);
     try {
-      const path = `${roomId}/${id}-${Date.now()}.${file.type.split("/")[1]}`;
-      const { error: upErr } = await supabase.storage.from("hold-slides").upload(path, file, { contentType: file.type });
-      if (upErr) throw upErr;
-      const { data, error: signErr } = await supabase.storage.from("hold-slides").createSignedUrl(path, 60 * 60 * 24 * 30);
-      if (signErr || !data) throw signErr ?? new Error("no url");
-      setHoldImage(id, data.signedUrl);
+      const buf = new Uint8Array(await file.arrayBuffer());
+      let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      const data = await uploadHoldImageFn({ data: { roomId, slide: id, type: file.type as "image/png", data: btoa(bin) } });
+      setHoldImage(id, data.url);
     } catch { setUploadError("อัปโหลดไม่สำเร็จ ลองใหม่อีกครั้ง"); }
     finally { setUploading(null); }
   };
