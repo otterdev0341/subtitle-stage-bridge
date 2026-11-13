@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useBroadcastSession } from "@/lib/use-broadcast-session";
 import { uploadHoldImage as uploadHoldImageFn } from "@/lib/hold-images.functions";
+import { SenderCropper } from "@/components/station/SenderCropper";
+import { CropPipeline } from "@/lib/crop-pipeline";
+import { FULL_CROP, cropKey, type CropRect, type CropShape } from "@/lib/screen-crop";
 import { StageCanvas } from "@/components/stage/StageCanvas";
 import { HoldSlide } from "@/components/stage/HoldSlide";
 import { TemplatePreview } from "@/components/stage/TemplatePreview";
@@ -51,6 +54,26 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
   const captionScreenRef = useRef<HTMLDivElement | null>(null);
   const { connected, participants, error, start, stop, sendCaption } = useBroadcastSession(roomId);
   const roleText = role === "presentation" ? "จอ A" : "จอ B";
+  const pipelineRef = useRef<CropPipeline | null>(null);
+  const [crop, setCrop] = useState<CropRect>(FULL_CROP);
+  const [shape, setShape] = useState<CropShape>("full");
+  const [paused, setPaused] = useState(false);
+  const [outSize, setOutSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    try { const saved = JSON.parse(window.localStorage.getItem(cropKey(roomId, role)) ?? "null"); if (saved?.crop) { setCrop(saved.crop); setShape(saved.shape ?? "free"); } } catch { /* ignore */ }
+  }, [roomId, role]);
+  const changeCrop = (next: CropRect, nextShape: CropShape) => {
+    setCrop(next); setShape(nextShape);
+    if (pipelineRef.current) pipelineRef.current.crop = next;
+    window.localStorage.setItem(cropKey(roomId, role), JSON.stringify({ crop: next, shape: nextShape }));
+  };
+  const changePaused = (p: boolean) => { setPaused(p); if (pipelineRef.current) pipelineRef.current.paused = p; };
+  useEffect(() => {
+    if (!stream) return undefined;
+    const t = window.setInterval(() => { const o = pipelineRef.current?.outSize; if (o) setOutSize((c) => c.w === o.w && c.h === o.h ? c : { ...o }); }, 500);
+    return () => window.clearInterval(t);
+  }, [stream]);
+  useEffect(() => () => pipelineRef.current?.stop(), []);
 
   useEffect(() => {
     if (role !== "translation" || !connected) return undefined;
@@ -65,15 +88,22 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
   const startSharing = async () => {
     setStarting(true);
     try {
-      const nextStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 24 }, audio: false });
+      const nextStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: false });
+      pipelineRef.current?.stop();
+      const pipeline = new CropPipeline(nextStream, crop);
+      pipeline.paused = paused;
+      pipelineRef.current = pipeline;
       setStream(nextStream);
       for (const track of nextStream.getTracks()) {
         track.addEventListener("ended", () => {
+          stop();
+          pipeline.stop();
+          if (pipelineRef.current === pipeline) pipelineRef.current = null;
           setStream(null);
           setScreenMode(false);
         }, { once: true });
       }
-      await start(role, nextStream);
+      await start(role, pipeline.stream);
       setScreenMode(true);
     } catch (shareError) {
       if (shareError instanceof Error && shareError.name !== "NotAllowedError") {
@@ -86,6 +116,9 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
 
   const stopSharing = () => {
     stop();
+    pipelineRef.current?.stop();
+    pipelineRef.current = null;
+    stream?.getTracks().forEach((t) => t.stop());
     setStream(null);
     setScreenMode(false);
   };
@@ -123,8 +156,9 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
           <>
             <div className="relay-station-kicker"><FileVideo2 size={15} /> SCREEN {role === "presentation" ? "A" : "B"} INPUT</div>
             <h1 className="relay-station-title">จอ {role === "presentation" ? "A" : "B"}<br /><em>พร้อมส่งภาพ</em></h1>
-            <div className="relay-presentation-preview">
-              {stream ? <video className="relay-self-preview" autoPlay muted playsInline ref={(element) => { if (element && element.srcObject !== stream) element.srcObject = stream; }} /> : <div className="relay-presentation-placeholder"><MonitorUp size={38} /><span>แชร์ทั้งหน้าจอ หน้าต่าง หรือแท็บใดก็ได้</span></div>}
+            {stream && <SenderCropper stream={stream} crop={crop} shape={shape} paused={paused} outSize={outSize} onChange={changeCrop} onPause={changePaused} />}
+            <div className="relay-presentation-preview" hidden={Boolean(stream)}>
+              {stream ? null : <div className="relay-presentation-placeholder"><MonitorUp size={38} /><span>แชร์ทั้งหน้าจอ หน้าต่าง หรือแท็บใดก็ได้</span></div>}
             </div>
             <div className="relay-station-actions">
               <Button className="relay-stage-button" disabled={starting} onClick={stream ? stopSharing : startSharing}>{starting ? <LoaderCircle className="relay-spin" size={17} /> : stream ? <CircleStop size={17} /> : <MonitorUp size={17} />}{starting ? "กำลังเชื่อมต่อ" : stream ? "หยุดแชร์หน้าจอ" : "เลือกจอที่จะแชร์"}</Button>
