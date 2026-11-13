@@ -1,14 +1,19 @@
-# Welcome to your Lovable project
+# Botnoi Live Relay
+
+ต้องการสร้าง boradcast service โดย ส่ง link ไปยัง คอมอีก 2 เครื่อง ซึ่งเปิดแล้วจะแชร์จอ กลับมา,
+โดยเครื่องแรก จะแชร์ เป็น presentation ใน canvase ซึ่งจะเปิดเต็มจอ มีการปรับ ขยับ, เครื่องที่สองจะเป็น translation จะเป็นจอดำ ๆ แล้วมีข้อความ, โดยแพลตฟอร์มจะต้องสามารถ ครอป ลาก ได้ เพราะต้องการจะพรีเซ็นในรูปแบบ subtitle มา overlay บน ที่เปิด presentaiton
 
 This project was built with [Lovable](https://lovable.dev).
 
+**Live app**: https://subtitle-stage-bridge.lovable.app
+
 ## Build with Lovable
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/3f3b9da4-9ec6-4072-ab75-d609d372567a).
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
 ## Development
 
@@ -20,10 +25,3 @@ cd <repository-name>
 npm i
 npm run dev
 ```
-
-## Built with
-
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS
