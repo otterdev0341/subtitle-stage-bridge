@@ -14,4 +14,12 @@ describe("App routing", () => {
 
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
   });
+
+  it("matches shared broadcast room links", () => {
+    const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
+
+    const matches = router.matchRoutes("/room/room-123?view=translation");
+
+    expect(matches.at(-1)?.routeId).toBe("/room/$roomId");
+  });
 });

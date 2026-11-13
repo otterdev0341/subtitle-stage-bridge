@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowDown, ArrowUpRight, Check, Clapperboard, Copy, Link2, MonitorUp, RadioTower } from "lucide-react";
+import { ArrowDown, ArrowUpRight, RadioTower } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -20,30 +20,17 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const [roomId, setRoomId] = useState("");
-  const [createdRoomId, setCreatedRoomId] = useState("");
   const navigate = useNavigate();
 
   const createRoom = () => {
     const id = crypto.randomUUID();
-    setCreatedRoomId(id);
+    void navigate({ to: "/room/$roomId", params: { roomId: id }, search: { view: "director" } });
   };
 
   const enterRoom = () => {
     const id = roomId.trim();
     if (id.length > 0) {
       void navigate({ to: "/room/$roomId", params: { roomId: id }, search: { view: "director" } });
-    }
-  };
-
-  const stageHref = createdRoomId ? `/room/${createdRoomId}?view=director` : "";
-
-  const shareHref = (view: "presentation" | "translation") =>
-    createdRoomId ? `/room/${createdRoomId}?view=${view}` : "";
-
-  const copyLink = async (view: "presentation" | "translation") => {
-    const path = shareHref(view);
-    if (path) {
-      await navigator.clipboard.writeText(new URL(path, window.location.origin).href);
     }
   };
 
@@ -80,22 +67,7 @@ function Home() {
             <div className="relay-step-index"><span>01</span><span className="relay-step-separator">/</span><span>03</span></div>
           </div>
 
-          {createdRoomId ? (
-            <div className="relay-room-ready">
-              <div className="relay-room-ready-heading">
-                <span className="relay-room-icon"><Check size={20} /></span>
-                <div><span className="relay-overline-small">ห้องถ่ายทอดพร้อมแล้ว</span><h3>รหัส {createdRoomId.slice(0, 8).toUpperCase()}</h3></div>
-              </div>
-              <div className="relay-share-grid">
-                <RoomShareLink number="01" title="ภาพพรีเซนต์" hint="แชร์หน้าจอที่ใช้ฉายสไลด์" href={shareHref("presentation")} icon={<Clapperboard size={19} />} onCopy={() => void copyLink("presentation")} />
-                <RoomShareLink number="02" title="คำบรรยายแปล" hint="พิมพ์คำแปลและแชร์หน้าจอข้อความ" href={shareHref("translation")} icon={<MonitorUp size={19} />} onCopy={() => void copyLink("translation")} />
-              </div>
-              <Button asChild className="relay-primary-button mt-7">
-                <a href={stageHref}><RadioTower size={17} /> เปิดห้องควบคุม <ArrowUpRight size={17} /></a>
-              </Button>
-            </div>
-          ) : (
-            <div className="relay-setup-grid">
+          <div className="relay-setup-grid">
               <div className="relay-setup-step">
                 <div className="relay-setup-number">01</div>
                 <div className="relay-setup-step-content">
@@ -121,8 +93,7 @@ function Home() {
                   </form>
                 </div>
               </div>
-            </div>
-          )}
+          </div>
         </section>
 
         <footer className="relay-home-footer flex flex-wrap items-center justify-between gap-3 py-7">
@@ -131,19 +102,5 @@ function Home() {
         </footer>
       </div>
     </main>
-  );
-}
-
-function RoomShareLink({ number, title, hint, href, icon, onCopy }: { number: string; title: string; hint: string; href: string; icon: ReactNode; onCopy: () => void }) {
-  return (
-    <div className="relay-share-link">
-      <span className="relay-share-number">{number}</span>
-      <span className="relay-share-icon">{icon}</span>
-      <div className="relay-share-copy"><strong>{title}</strong><span>{hint}</span></div>
-      <Button variant="ghost" size="icon" onClick={onCopy} aria-label={`คัดลอกลิงก์${title}`} title={`คัดลอกลิงก์${title}`}><Copy size={16} /></Button>
-      <Button asChild variant="ghost" size="icon" title={`เปิด${title}`}>
-        <a href={href} target="_blank" rel="noreferrer" aria-label={`เปิด${title}`}><Link2 size={16} /></a>
-      </Button>
-    </div>
   );
 }

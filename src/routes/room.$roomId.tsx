@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Check, ChevronDown, CircleStop, Crop, Expand, Eye, EyeOff, FileVideo2, Languages, Link2, LoaderCircle, MonitorUp, Move, RadioTower, Settings2, Share2, Type, Users, X } from "lucide-react";
+import { Check, ChevronDown, CircleStop, Crop, Expand, Eye, EyeOff, FileVideo2, Languages, Link2, LoaderCircle, MonitorUp, Move, RadioTower, Settings2, Share2, Type, Users, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -11,7 +11,7 @@ type RoomView = "director" | "presentation" | "translation" | "stage";
 
 export const Route = createFileRoute("/room/$roomId")({
   validateSearch: (search: Record<string, unknown>): { view: RoomView } => ({
-    view: search.view === "presentation" || search.view === "translation" || search.view === "stage" ? search.view : "director",
+    view: search["view"] === "presentation" || search["view"] === "translation" || search["view"] === "stage" ? (search["view"] as RoomView) : "director",
   }),
   head: ({ params }) => ({
     meta: [
@@ -42,17 +42,15 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
   const [starting, setStarting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [screenMode, setScreenMode] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const captionScreenRef = useRef<HTMLDivElement | null>(null);
   const { connected, participants, error, start, stop, sendCaption } = useBroadcastSession(roomId);
   const roleText = role === "presentation" ? "ภาพพรีเซนต์" : "คำบรรยายแปล";
 
   useEffect(() => {
-    const subtitleTimer = role === "translation" && connected && text.trim()
-      ? window.setTimeout(() => sendCaption(text.trim()), 160)
-      : undefined;
-    return () => { if (subtitleTimer !== undefined) window.clearTimeout(subtitleTimer); };
-  }, [connected, role, sendCaption, text]);
+    if (role !== "translation" || !screenMode || !connected) return undefined;
+    const timer = window.setTimeout(() => sendCaption(text.trim()), 180);
+    return () => window.clearTimeout(timer);
+  }, [connected, role, screenMode, sendCaption, text]);
 
   const updateText = (value: string) => {
     setText(value.slice(0, 320));
@@ -64,6 +62,12 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
     try {
       const nextStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 24 }, audio: false });
       setStream(nextStream);
+      for (const track of nextStream.getTracks()) {
+        track.addEventListener("ended", () => {
+          setStream(null);
+          setScreenMode(false);
+        }, { once: true });
+      }
       await start(role, nextStream);
       setScreenMode(true);
     } catch (shareError) {
@@ -93,15 +97,10 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
 
   if (role === "translation" && screenMode) {
     return (
-      <main className="relay-translation-screen relay-translation-share-mode">
+    <main className="relay-translation-screen relay-translation-share-mode">
         <div className="relay-translation-topline"><span className="relay-live-dot" /><span>LIVE TRANSLATION</span><span className="relay-screen-room">{roomId.slice(0, 8).toUpperCase()}</span></div>
-        <div className="relay-translation-canvas" ref={captionScreenRef}>
-          <p className="relay-translation-caption" lang="th">{text || "รอข้อความคำแปล"}</p>
-        </div>
-        <div className="relay-translation-share-controls">
-          <label className="relay-overline-small" htmlFor="live-translation">แก้ไขคำแปล</label>
-          <textarea id="live-translation" value={text} onChange={(event) => updateText(event.target.value)} placeholder="พิมพ์คำแปลตรงนี้ แล้วข้อความจะขึ้นบนจอทันที" maxLength={320} />
-          <div className="relay-share-preview-footer"><span>อีกเครื่องจะเห็นข้อความเดียวกันแบบเรียลไทม์</span><Button variant="ghost" className="relay-icon-action" onClick={enterFullscreen} title="ขยายเต็มจอ" aria-label="ขยายเต็มจอ"><Expand size={17} /></Button></div>
+        <div className="relay-translation-canvas relay-translation-edit-canvas" ref={captionScreenRef}>
+          <div className="relay-translation-caption" lang="th" role="textbox" aria-label="ข้อความคำแปลที่กำลังแชร์" contentEditable suppressContentEditableWarning onInput={(event) => updateText(event.currentTarget.innerText)}>{text || "คลิกตรงนี้แล้วพิมพ์คำแปล"}</div>
         </div>
         <StationFooter connected={connected} roleText={roleText} stopSharing={stopSharing} />
       </main>
@@ -136,7 +135,7 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
               <div><h1 className="relay-station-title">คำบรรยาย<br /><em>แปลสด</em></h1></div>
               <Button variant="ghost" className="relay-icon-action" onClick={enterFullscreen} title="ขยายจอแปล" aria-label="ขยายจอแปล"><Expand size={17} /></Button>
             </div>
-            <div ref={(element) => { if (element) textareaRef.current = element.querySelector("textarea"); }} className="relay-translation-output">
+            <div className="relay-translation-output" ref={captionScreenRef}>
               <div className="relay-translation-live-indicator"><span className={connected ? "relay-live-dot" : "relay-status-wait"} /> {connected ? "LIVE CAPTION" : "READY"}</div>
               <p className="relay-translation-caption" lang="th">{text || "คำแปลของคุณจะปรากฏตรงนี้"}</p>
               <button type="button" className="relay-output-expand" onClick={enterFullscreen} aria-label="เปิดข้อความเต็มจอ"><Expand size={17} /></button>
@@ -183,18 +182,15 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
   const [copied, setCopied] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
   const [activeDrag, setActiveDrag] = useState(false);
-  const [screenStreams, setScreenStreams] = useState<Record<string, MediaStream | null>>({});
+  const [screenStreams, setScreenStreams] = useState<Record<LayerName, MediaStream | null>>({ presentation: null, translation: null });
   const [speakers, setSpeakers] = useState<Array<{ role: BroadcastRole; stream: MediaStream }>>([]);
-  const [previewFit, setPreviewFit] = useState(true);
-  const [fitPreview, setFitPreview] = useState(true);
-  const [pointerOffset, setPointerOffset] = useState<{ x: number; y: number; mode: "move" | "resize"; width: number; height: number; stageWidth: number; stageHeight: number } | null>(null);
+  const [fitPreview, setFitPreview] = useState(false);
+  const [pointerOffset, setPointerOffset] = useState<{ x: number; y: number; mode: "move" | "resize"; width: number; height: number; startX: number; startY: number } | null>(null);
   const [mobileTools, setMobileTools] = useState(false);
   const [liveError, setLiveError] = useState("");
   const navigate = useNavigate();
   const stageRef = useRef<HTMLDivElement | null>(null);
   const stageVideoRef = useRef<HTMLVideoElement | null>(null);
-  const shareTimeoutRef = useRef<number | null>(null);
-  const displayedStreams = useRef<MediaStream[]>([]);
 
   const session = useBroadcastSession(roomId);
   const participants = session.participants;
@@ -202,9 +198,9 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
   const error = session.error || liveError;
 
   useEffect(() => {
-    void session.start("director");
+    void session.start(stageOnly ? "translation-display" : "director");
     return () => session.stop();
-  }, [roomId, session.start, session.stop]);
+  }, [roomId, stageOnly, session.start, session.stop]);
 
   useEffect(() => {
     setSpeakers(participants.flatMap((participant) => participant.stream
@@ -219,19 +215,17 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
       speakers.find((speaker) => speaker.role === role)?.stream ?? null,
     ])) as Record<LayerName, MediaStream | null>;
     setScreenStreams((current) => current.presentation === next.presentation && current.translation === next.translation ? current : next);
-    displayedStreams.current = keys.flatMap((role) => next[role] ? [next[role] as MediaStream] : []);
   }, [speakers]);
 
   const presentation = screenStreams.presentation;
   const translation = screenStreams.translation;
   const selectedStream = layer === "presentation" ? presentation : translation;
-  const presentationStream = stageOnly && layer === "presentation" ? screenStreams.presentation : screenStreams.presentation;
-  const imageStream = layer === "presentation" ? presentationStream : translation;
+  const imageStream = layer === "presentation" ? presentation : translation;
   const remoteRoleStatus = (role: LayerName) => participants.some((participant) => participant.role === role && participant.stream);
 
   useEffect(() => {
     const video = stageVideoRef.current;
-    if (video && video.srcObject !== imageStream) video.srcObject = imageStream;
+    if (video && video.srcObject !== imageStream) video.srcObject = imageStream ?? null;
   }, [imageStream]);
 
   useEffect(() => {
@@ -271,7 +265,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     event.currentTarget.setPointerCapture(event.pointerId);
     const localX = (event.clientX - stage.left) / stage.width * 100;
     const localY = (event.clientY - stage.top) / stage.height * 100;
-    setPointerOffset({ x: localX - geometry.x, y: localY - geometry.y, mode: "move", width: geometry.width, height: geometry.height, stageWidth: stage.width, stageHeight: stage.height });
+    setPointerOffset({ x: localX - geometry.x, y: localY - geometry.y, mode: "move", width: geometry.width, height: geometry.height, startX: event.clientX, startY: event.clientY });
     setActiveDrag(true);
   };
 
@@ -281,8 +275,8 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     if (pointerOffset.mode === "resize") {
       setGeometry((current) => ({
         ...current,
-        width: clamp(pointerOffset.width + (event.clientX - (stage.left + geometry.x / 100 * stage.width)) / stage.width * 100, 12, Math.min(90, 100 - current.x)),
-        height: clamp(pointerOffset.height + (event.clientY - (stage.top + geometry.y / 100 * stage.height)) / stage.height * 100, 12, Math.min(70, 100 - current.y)),
+        width: clamp(pointerOffset.width + (event.clientX - pointerOffset.startX) / stage.width * 100, 12, Math.min(90, 100 - current.x)),
+        height: clamp(pointerOffset.height + (event.clientY - pointerOffset.startY) / stage.height * 100, 12, Math.min(70, 100 - current.y)),
       }));
       return;
     }
@@ -301,8 +295,18 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    setPointerOffset({ x: 0, y: 0, mode: "resize", width: geometry.width, height: geometry.height, stageWidth: stage.width, stageHeight: stage.height });
+    setPointerOffset({ x: 0, y: 0, mode: "resize", width: geometry.width, height: geometry.height, startX: event.clientX, startY: event.clientY });
     setActiveDrag(true);
+  };
+
+  const handleResizePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!pointerOffset || !stageRef.current || pointerOffset.mode !== "resize") return;
+    const stage = stageRef.current.getBoundingClientRect();
+    setGeometry((current) => ({
+      ...current,
+      width: clamp(pointerOffset.width + (event.clientX - pointerOffset.startX) / stage.width * 100, 12, Math.min(90, 100 - current.x)),
+      height: clamp(pointerOffset.height + (event.clientY - pointerOffset.startY) / stage.height * 100, 12, Math.min(70, 100 - current.y)),
+    }));
   };
 
   const setGeometryValue = (key: "width" | "height" | "cropX" | "cropY", value: number) => {
@@ -326,21 +330,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
 
   const shareWindow = (view: RoomView) => `${window.location.origin}/room/${roomId}?view=${view}`;
 
-  const addLayer = async (role: LayerName) => {
-    const participant = participants.find((candidate) => candidate.role === role && candidate.stream);
-    if (!participant?.stream || !stageRef.current) return;
-    const videoTrack = participant.stream.getVideoTracks()[0];
-    if (!videoTrack) return;
-    const stream = new MediaStream([videoTrack]);
-    setLayer(role);
-    setVisible(true);
-    setGeometry((current) => ({ ...current, ...(role === "translation" ? { x: 62, y: 68 } : { x: 64, y: 16 }) }));
-    setLiveError("");
-    void navigate({ to: "/room/$roomId", params: { roomId }, search: { view: "director" }, replace: true });
-    shareTimeoutRef.current = window.setTimeout(() => setLiveError(""), 1200);
-  };
-
-  const layerActions = useMemo(() => ({ presentation, translation }), [presentation, translation]);
+  const layerActions = { presentation, translation };
   const variableGeometry: React.CSSProperties = {
     "--layer-left": `${geometry.x}%`,
     "--layer-top": `${geometry.y}%`,
@@ -348,10 +338,6 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     "--layer-height": `${geometry.height}%`,
   } as React.CSSProperties;
   const cropPosition = `${geometry.cropX}% ${geometry.cropY}%`;
-
-  useEffect(() => () => {
-    if (shareTimeoutRef.current !== null) window.clearTimeout(shareTimeoutRef.current);
-  }, []);
 
   if (stageOnly) {
     return (
@@ -364,9 +350,14 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
         };
         window.addEventListener("touchend", end, { once: true });
       }}>
-        <StageVideo stream={imageStream} videoRef={stageVideoRef} fit={fitPreview} />
-        {!imageStream && <StagePlaceholder />}
-        {visible && caption && <div className="relay-audience-caption" lang="th">{caption}</div>}
+        <StageVideo stream={presentation ?? null} videoRef={stageVideoRef} fit={fitPreview} />
+        {!presentation && <StagePlaceholder />}
+        {visible && (imageStream || caption) && (
+          <div className={`relay-floating-layer ${imageStream ? "has-shared-screen" : "has-translation"}`} style={variableGeometry}>
+            {imageStream && <video className="relay-layer-video" ref={(element) => { if (element && element.srcObject !== imageStream) element.srcObject = imageStream; }} autoPlay muted playsInline style={{ objectPosition: cropPosition }} />}
+            {layer === "presentation" && caption && <div className="relay-layer-caption" style={{ "--caption-scale": String(fontScale / 50) } as React.CSSProperties}>{caption}</div>}
+          </div>
+        )}
         <Button variant="ghost" className="relay-audience-fullscreen" onClick={toggleFullscreen} title="เปิดเต็มจอ" aria-label="เปิดเต็มจอ"><Expand size={19} /></Button>
       </main>
     );
@@ -379,7 +370,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
         <div className="relay-room-topbar-middle"><span className={`relay-live-dot${session.connected ? "" : " relay-dot-muted"}`} /><span>{session.connected ? "ห้องถ่ายทอดสด" : "เชื่อมต่อห้อง"}</span><span className="relay-room-separator">/</span><span>{roomId.slice(0, 8).toUpperCase()}</span></div>
         <div className="relay-director-top-actions">
           <span className="relay-participant-count"><Users size={15} /> {participants.filter((participant) => participant.stream).length}</span>
-          <Button variant="outline" className="relay-share-room-btn" onClick={() => void copyLink(shareWindow("stage"))}>{copied ? <Check size={15} /> : <Share2 size={15} />} {copied ? "คัดลอกแล้ว" : "เปิดจอฉาย"}</Button>
+          <Button asChild variant="outline" className="relay-share-room-btn"><a href={shareWindow("stage")} target="_blank" rel="noreferrer"><Expand size={15} /> เปิดจอฉาย</a></Button>
           <Button className="relay-director-present" onClick={() => void navigate({ to: "/room/$roomId", params: { roomId }, search: { view: "stage" } })}><Expand size={16} /> จอฉาย</Button>
         </div>
       </header>
@@ -408,11 +399,11 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
                   onPointerUp={handlePointerEnd}
                   onPointerCancel={handlePointerEnd}
                 >
-                  {selectedStream && <video className="relay-layer-video" ref={(element) => { if (element && element.srcObject !== selectedStream) element.srcObject = selectedStream; }} autoPlay muted playsInline style={{ objectPosition: cropPosition }} />}
+                    {selectedStream && <video className="relay-layer-video" ref={(element) => { if (element && element.srcObject !== selectedStream) element.srcObject = selectedStream; }} autoPlay muted playsInline style={{ objectPosition: cropPosition }} />}
                   {!selectedStream && caption && <div className="relay-caption-overlay" lang="th">{caption}</div>}
-                  {selectedStream && <div className="relay-layer-caption" style={{ "--caption-scale": String(fontScale / 50) } as React.CSSProperties}>{caption}</div>}
+                    {selectedStream && layer === "presentation" && caption && <div className="relay-layer-caption" style={{ "--caption-scale": String(fontScale / 50) } as React.CSSProperties}>{caption}</div>}
                   {!stageOnly && <div className="relay-layer-tools"><span><Move size={13} /> ลากเพื่อย้าย</span><span className="relay-layer-grip" title="ลากขอบเพื่อปรับขนาด"><Crop size={13} /></span></div>}
-                  {!stageOnly && <button type="button" className="relay-layer-resize" aria-label="ปรับขนาดกรอบ" onPointerDown={handleResizePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerEnd} onPointerCancel={handlePointerEnd} />}
+                  {!stageOnly && <button type="button" className="relay-layer-resize" aria-label="ปรับขนาดกรอบ" onPointerDown={handleResizePointerDown} onPointerMove={handleResizePointerMove} onPointerUp={handlePointerEnd} onPointerCancel={handlePointerEnd} />}
                 </div>
               )}
               {!presentation && !selectedStream && !caption && <div className="relay-stage-empty-message"><span><RadioTower size={20} /></span><div><b>เวทีพร้อมถ่ายทอด</b><small>ส่งลิงก์ให้สองเครื่อง เพื่อเริ่มแชร์ภาพ</small></div></div>}
@@ -458,14 +449,14 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
             <ControlSlider label="ครอปแนวนอน" value={geometry.cropX} onChange={(value) => setGeometryValue("cropX", value)} />
             <ControlSlider label="ครอปแนวตั้ง" value={geometry.cropY} onChange={(value) => setGeometryValue("cropY", value)} />
             <div className="relay-control-tool-row">
-              <button type="button" className="relay-fit-toggle" onClick={() => setPreviewFit((value) => !value)}><Crop size={14} /><span>{previewFit ? "ครอปภาพ" : "พอดีกรอบ"}</span></button>
+              <button type="button" className="relay-fit-toggle" onClick={() => setFitPreview((value) => !value)}><Crop size={14} /><span>{fitPreview ? "พอดีกรอบ" : "ครอปภาพ"}</span></button>
               <ControlSlider label="ขนาดตัวอักษร" value={fontScale} min={25} max={90} onChange={setFontScale} icon={<Type size={14} />} />
             </div>
           </section>
 
           <section className="relay-panel-section relay-caption-share-section">
             <div className="relay-director-caption-row"><Languages size={15} /><div><span>ข้อความคำแปล</span><b>{caption ? "มีข้อความถ่ายทอด" : "รอข้อความจากผู้แปล"}</b></div><span className={`relay-connection-light${caption ? " is-online" : ""}`} /></div>
-            <Button variant="ghost" className="relay-add-layer" onClick={() => void addLayer(layer)} disabled={!layerActions[layer]}><ArrowLeft size={14} /> เพิ่มหน้าจอที่แชร์เข้ากรอบ</Button>
+            <Button variant="ghost" className="relay-add-layer" onClick={() => setVisible((current) => !current)} disabled={!layerActions[layer]}>{visible ? <EyeOff size={14} /> : <Eye size={14} />} {visible ? "ซ่อนภาพซ้อน" : "แสดงภาพซ้อน"}</Button>
           </section>
 
           <footer className="relay-panel-footer"><span><LockIcon /> ข้อมูลภาพส่งตรงระหว่างเครื่อง</span><a href={shareWindow("stage")} target="_blank" rel="noreferrer">เปิดหน้าจอฉาย <Link2 size={13} /></a></footer>
