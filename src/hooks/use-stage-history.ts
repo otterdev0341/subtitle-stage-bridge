@@ -10,10 +10,10 @@ export function useStageHistory() {
     future = useRef<StageLayout[]>([]);
   const gesture = useRef(false),
     recorded = useRef(false);
-  const setLayout = useCallback((action: SetStateAction<StageLayout>) => {
+  const setLayout = useCallback((action: SetStateAction<StageLayout>, record = true) => {
     const before = current.current;
     const next = typeof action === "function" ? action(before) : action;
-    if (composition(before) !== composition(next)) {
+    if (record && composition(before) !== composition(next)) {
       if (!gesture.current || !recorded.current)
         past.current = [...past.current.slice(-49), before];
       future.current = [];

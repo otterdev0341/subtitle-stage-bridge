@@ -35,8 +35,9 @@ vi.mock("@/integrations/supabase/client", () => ({
           return channel;
         },
         send: (message: Envelope) => {
-          bus.messages.push(message.payload);
-          bus.channels.filter((c) => c !== channel).forEach((c) => c.handler(message));
+          const serialized = JSON.parse(JSON.stringify(message)) as Envelope;
+          bus.messages.push(serialized.payload);
+          bus.channels.filter((c) => c !== channel).forEach((c) => c.handler(serialized));
           return Promise.resolve("ok");
         },
       };
@@ -56,6 +57,42 @@ afterEach(() => {
   bus.messages = [];
 });
 describe("stage → director → all stage screens", () => {
+  it("shares independent Content/Mask geometry with late screens and custom scene shortcuts", async () => {
+    let state = defaultLayout();
+    state.layers.translation = {
+      ...state.layers.translation,
+      height: 10,
+      content: { x: -200, y: 640, width: 1600, height: 900 },
+      sourceSize: { w: 1920, h: 1080 },
+    };
+    const layers = structuredClone(state.layers);
+    layers.translation.content!.width = 800;
+    layers.translation.content!.height = 450;
+    state.quickSlots = [
+      { id: "scene", name: "Content+Mask", layout: { ...defaultLayout(), layers } },
+    ];
+    const director = renderHook(() =>
+      useBroadcastSession("test", (command) => {
+        state = reduceShowCommand(state, command);
+        return state;
+      }),
+    );
+    const stage = renderHook(() => useBroadcastSession("test"));
+    await act(async () => {
+      await director.result.current.start("director");
+      director.result.current.sendLayout(state);
+      await stage.result.current.start("translation-display");
+    });
+    expect(stage.result.current.layout?.layers.translation).toEqual(state.layers.translation);
+    act(() => stage.result.current.sendCommand("slot1"));
+    expect(stage.result.current.layout?.layers.translation.content?.width).toBe(800);
+    expect(stage.result.current.layout?.layers.translation.height).toBe(10);
+    const late = renderHook(() => useBroadcastSession("test"));
+    await act(async () => {
+      await late.result.current.start("translation-display");
+    });
+    expect(late.result.current.layout?.layers).toEqual(state.layers);
+  });
   it("confirms commands, shares custom slots, and applies a duplicate request only once", async () => {
     let authoritative = defaultLayout();
     const handler = vi.fn((command: ShowCommand) => {

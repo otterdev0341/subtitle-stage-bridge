@@ -1006,3 +1006,27 @@
 .relay-audience-controls kbd { color: #fff; border-color: #ffffff80; }
 .relay-stage-frame:fullscreen, .relay-stage-frame-audience { container-type: size; background: #000; }
 .relay-stage-frame:fullscreen .relay-stage-box, .relay-stage-frame-audience .relay-stage-box { flex: none; width: min(100cqw, var(--stage-fit-width)); height: min(100cqh, var(--stage-fit-height)); max-width: none; max-height: none; }
+/* Independent source transform and mask */
+.relay-source-plane { position: relative; width: 100%; height: 100%; overflow: hidden; container-type: inline-size; background: #000; }
+.relay-source-caption { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 4%; color: white; text-align: center; font-weight: 600; }
+.relay-mask-viewport { position: relative; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+.relay-stage-layer { transition: none; }
+.relay-content-transform { pointer-events: none; }
+.relay-stage-layer.is-active { outline: 2px solid #4ee396; box-shadow: 0 0 0 3px #4ee39633; }
+.relay-stage-layer.is-active .relay-stage-layer-tag { background: #4ee396; }
+.relay-stage-layer.is-active .relay-stage-handle { background: #4ee396; }
+.relay-content-ghost { position: absolute; opacity: .2; pointer-events: none; z-index: 0; }
+.relay-content-guide { position: absolute; border: 1px dashed #46abff; pointer-events: none; z-index: 25; }
+.relay-content-guide.is-editing { pointer-events: auto; cursor: move; border: 2px solid #46abff; }
+.relay-content-guide .relay-stage-handle { background: #46abff; }
+.relay-content-guide-label { position: absolute; left: 0; top: -22px; color: #a7d5ff; background: #082b4e; padding: 2px 6px; font-size: 11px; white-space: nowrap; pointer-events: none; }
+.relay-empty-overlay { position: absolute; inset: 0; pointer-events: none; }
+.relay-stage-handle-n { top: -7px; left: calc(50% - 7px); cursor: ns-resize; }
+.relay-stage-handle-s { bottom: -7px; left: calc(50% - 7px); cursor: ns-resize; }
+.relay-stage-handle-e { right: -7px; top: calc(50% - 7px); cursor: ew-resize; }
+.relay-stage-handle-w { left: -7px; top: calc(50% - 7px); cursor: ew-resize; }
+.relay-geometry-controls { border: 1px solid var(--border); padding: 12px; border-radius: 6px; margin: 12px 0; min-width: 0; }
+.relay-geometry-controls p, .relay-geometry-hint { font-size: 12px; line-height: 1.6; margin: 8px 0; }
+.relay-geometry-controls small { display: block; font-size: 11px; color: var(--muted-foreground); }
+.relay-mask-viewport { background: #000; }
+.relay-content-ghost { inset: 0; z-index: 24; }

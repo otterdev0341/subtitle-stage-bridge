@@ -13,6 +13,8 @@ import { FULL_CROP, cropKey, normalizeCrop, type CropRect, type CropShape } from
 import { SHOW_ACTIONS, commandForKey, reduceShowCommand, type ShowCommand } from "@/lib/show-controls";
 import { useStageHistory } from "@/hooks/use-stage-history";
 import { CroppedVideo } from "@/components/stage/CroppedVideo";
+import { LayerGeometryControls } from "@/components/stage/LayerGeometryControls";
+import { freezeContent, receiveSourceSize, type StageEditMode, type SourceSize } from "@/lib/stage-geometry";
 import { StageCanvas } from "@/components/stage/StageCanvas";
 import { HoldSlide } from "@/components/stage/HoldSlide";
 import { TemplatePreview } from "@/components/stage/TemplatePreview";
@@ -195,11 +197,8 @@ const PANEL_TABS: Array<{ id: PanelTab; label: string }> = [
 
 function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolean }) {
   const { layout, setLayout, undo, redo, canUndo, canRedo, beginEdit, endEdit } = useStageHistory();
-  const [editMode, setEditMode] = useState<"display" | "crop">("display");
+  const [editMode, setEditMode] = useState<StageEditMode>("mask");
   const [workspaceZoom, setWorkspaceZoom] = useState(0);
-  const [cropDraft, setCropDraft] = useState<CropRect>(FULL_CROP);
-  const [cropShape, setCropShape] = useState<CropShape>("free");
-  const [imageDraft, setImageDraft] = useState({ zoom: 100, cropX: 50, cropY: 50 });
   const [showHelp, setShowHelp] = useState(false);
   const [copied, setCopied] = useState<RoomView | null>(null);
   const [fullScreen, setFullScreen] = useState(false);
@@ -284,8 +283,12 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
 
   const active = layout.activeLayer;
   const activeRect = layout.layers[active];
-  const updateLayer = (name: LayerName, patch: Partial<LayerRect>) => setLayout((l) => ({ ...l, layers: { ...l.layers, [name]: { ...l.layers[name], ...patch } } }));
-  const select = (name: LayerName) => { setEditMode("display"); setLayout((l) => ({ ...l, activeLayer: name })); };
+  const updateLayer = (name: LayerName, patch: Partial<LayerRect>) => setLayout((l) => ({ ...l, layers: { ...l.layers, [name]: { ...freezeContent(l.layers[name], l.aspect), ...patch } } }));
+  const handleSourceSize = (name: LayerName, size: SourceSize) => setLayout(l => {
+    const next = receiveSourceSize(l.layers[name], l.aspect, size);
+    return next === l.layers[name] ? l : { ...l, layers: { ...l.layers, [name]: next } };
+  }, false);
+  const select = (name: LayerName) => setLayout((l) => ({ ...l, activeLayer: name }));
   const setHold = (id: HoldSlideId | null) => setLayout((l) => ({ ...l, blackout: false, hold: id ? { id, target: holdTarget } : null }));
   const [uploading, setUploading] = useState<HoldSlideId | null>(null);
   const [uploadError, setUploadError] = useState("");
@@ -339,7 +342,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     {SHOW_ACTIONS.map(([command, label, key]) => {
       const slot = command.startsWith("slot") ? (layout.quickSlots ?? BUILT_IN_TEMPLATES)[Number(command.slice(-1)) - 1] : null;
       const holdId = command === "wait" || command === "title" || command === "technical" ? command : null;
-      const active = command === "live" ? !layout.hold && !layout.blackout : command === "blackout" ? layout.blackout : holdId ? layout.hold?.id === holdId && !layout.blackout : slot ? JSON.stringify(slot.layout.layers) === JSON.stringify(layout.layers) && slot.layout.aspect.w === layout.aspect.w && slot.layout.aspect.h === layout.aspect.h : false;
+      const active = command === "live" ? !layout.hold && !layout.blackout : command === "blackout" ? layout.blackout : holdId ? layout.hold?.id === holdId && !layout.blackout : slot ? JSON.stringify(applyTemplate(layout, slot).layers) === JSON.stringify(layout.layers) && slot.layout.aspect.w === layout.aspect.w && slot.layout.aspect.h === layout.aspect.h : false;
       return <button key={command} type="button" className={`relay-quick-btn${active ? " is-active" : ""}`} aria-pressed={!!active} disabled={stageOnly && !session.connected} onClick={() => execute(command)}>{slot?.name ?? (holdId ? layout.holdTexts[holdId].title : label)} <kbd>{key}</kbd></button>;
     })}
     <button type="button" className="relay-quick-btn" onClick={toggleFullscreen}>เต็มจอ <kbd>F</kbd></button>
@@ -404,15 +407,16 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
           </div>
 
           <div className="relay-editor-tools">
-            <button type="button" aria-pressed={editMode === "display"} onClick={() => setEditMode("display")}>จัดกรอบ Display</button>
-            <button type="button" aria-pressed={editMode === "crop"} disabled={!streams[active] || !!activeRect.locked} onClick={() => { setCropDraft(activeRect.sourceCrop ?? FULL_CROP); setImageDraft({ zoom: activeRect.zoom ?? 100, cropX: activeRect.cropX, cropY: activeRect.cropY }); setCropShape("free"); setEditMode("crop"); setTab("layer"); }}>Crop ภาพจอ {active === "presentation" ? "A" : "B"}</button>
+            <button type="button" aria-pressed={editMode === "mask"} onClick={() => { setEditMode("mask"); setTab("layer"); }}>ปรับ Mask</button>
+            <button type="button" aria-pressed={editMode === "content"} onClick={() => { setEditMode("content"); setTab("layer"); }}>ปรับ Content</button>
+            <button type="button" aria-pressed={editMode === "group"} onClick={() => { setEditMode("group"); setTab("layer"); }}>ย้ายทั้งเลเยอร์</button>
             <label>ซูมพื้นที่ทำงาน <select value={workspaceZoom} onChange={e => setWorkspaceZoom(Number(e.target.value))}>{[0, 50, 100, 150, 200].map(v => <option key={v} value={v}>{v === 0 ? "Fit" : `${v}%`}</option>)}</select></label>
             <button type="button" disabled={!canUndo} onClick={undo}>Undo</button><button type="button" disabled={!canRedo} onClick={redo}>Redo</button>
           </div>
-          {editMode === "crop" && <p>โหมด Crop: เลือกพื้นที่จากแผงด้านข้าง กรอบ Display คงที่จนกดใช้ Crop <button type="button" onClick={() => { setTab("layer"); setPanelCollapsed(false); setMobileTools(true); }}>เปิดแผง Crop</button></p>}
+          <p className="relay-geometry-hint">{editMode === "mask" ? "สีเขียว: ลากขอบ Mask เพื่อเปิด/ปิดพื้นที่ ภาพข้างในไม่เปลี่ยนขนาด" : editMode === "content" ? "สีน้ำเงิน: เลื่อนหรือขยาย Content โดยคงสัดส่วน Mask อยู่ที่เดิม" : "ลากในกรอบเพื่อย้าย Content และ Mask พร้อมกัน"}</p>
           <div className="relay-composition-shell relay-editor-viewport">
             <div style={{ width: workspaceZoom ? layout.aspect.w * workspaceZoom / 100 : "100%", flexShrink: 0 }}>
-            <StageCanvas layout={layout} streams={streams} caption={caption} editable={editMode === "display"} onEditStart={beginEdit} onEditEnd={endEdit} stageRef={stageRef} onSelect={select} onChangeLayer={(name, rect) => updateLayer(name, rect)}>
+            <StageCanvas layout={layout} streams={streams} caption={caption} editable editMode={editMode} onSourceSize={handleSourceSize} onEditStart={beginEdit} onEditEnd={endEdit} stageRef={stageRef} onSelect={select} onChangeLayer={(name, rect) => updateLayer(name, rect)}>
               <div className="relay-composition-chrome"><span><span className="relay-live-dot" /> {layout.hold ? "พักจอ" : "LIVE"}</span><span>{roomId.slice(0, 8).toUpperCase()}</span></div>
             </StageCanvas>
             </div>
@@ -422,7 +426,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
             <div><span className={`relay-connection-light${streams.presentation ? " is-online" : ""}`} /><span>จอ A</span><b>{streams.presentation ? "LIVE" : "รอจอ"}</b></div>
             <span className="relay-status-separator" />
             <div><span className={`relay-connection-light${streams.translation ? " is-online" : ""}`} /><span>จอ B</span><b>{streams.translation ? "LIVE" : "รอจอ"}</b></div>
-            <span className="relay-status-hint">ลากกลางกรอบเพื่อย้าย · ลากจุดมุมเพื่อย่อ/ขยาย · กด Shift เพื่อคงสัดส่วน</span>
+            <span className="relay-status-hint">Mask กับ Content แยกกัน · กรอบสีน้ำเงินคงสัดส่วนภาพเสมอ</span>
           </div>
 
           <div className="relay-quick-hold" role="toolbar" aria-label="สลับสไลด์พักจอด่วน">
@@ -474,45 +478,12 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
               <button type="button" className="relay-fit-toggle" onClick={() => setLayout((l) => ({ ...l, layers: sendToBack(l.layers, active) }))}><SendToBack size={14} /><span>ส่งไปหลัง</span></button>
             </div>
             <div className="relay-editor-tools">
-              <button type="button" aria-pressed={!!activeRect.locked} onClick={() => { updateLayer(active, { locked: !activeRect.locked }); setEditMode("display"); }}>{activeRect.locked ? "ปลดล็อกเลเยอร์" : "ล็อกเลเยอร์"}</button>
-              <button type="button" aria-pressed={!!activeRect.lockAspect} onClick={() => updateLayer(active, { lockAspect: !activeRect.lockAspect })}>ล็อกสัดส่วน</button>
+              <button type="button" aria-pressed={!!activeRect.locked} onClick={() => { updateLayer(active, { locked: !activeRect.locked }); setEditMode("mask"); }}>{activeRect.locked ? "ปลดล็อกเลเยอร์" : "ล็อกเลเยอร์"}</button>
+              <button type="button" aria-pressed={!!activeRect.lockAspect} onClick={() => updateLayer(active, { lockAspect: !activeRect.lockAspect })}>ล็อกสัดส่วน Mask</button>
             </div>
-            {editMode === "display" ? <fieldset disabled={!!activeRect.locked} className="relay-display-fields">
-              <legend>กรอบ Display · หน่วย % ของเวที</legend>
-              {([['x', 'ตำแหน่ง X'], ['y', 'ตำแหน่ง Y'], ['width', 'ความกว้าง'], ['height', 'ความสูง']] as const).map(([key, label]) => <label key={key}>{label}<input type="number" min={key === "width" || key === "height" ? 8 : 0} max={100} step={0.1} value={Number(activeRect[key].toFixed(2))} onChange={e => {
-                if (!e.target.value) return;
-                const value = Number(e.target.value); if (!Number.isFinite(value)) return;
-                const next = { ...activeRect, [key]: Math.max(key === "width" || key === "height" ? 8 : 0, Math.min(100, value)) };
-                if (activeRect.lockAspect && (key === "width" || key === "height")) {
-                  const factor = next[key] / activeRect[key];
-                  const bounded = Math.min(factor, 100 / activeRect.width, 100 / activeRect.height);
-                  next.width = activeRect.width * bounded; next.height = activeRect.height * bounded;
-                }
-                next.x = Math.min(next.x, 100 - next.width); next.y = Math.min(next.y, 100 - next.height);
-                const regions = arrangementRegions(layout.arrangement, layout.split, layout.splitSwap);
-                updateLayer(active, regions ? clampToRegion(next, regions[active]) : next);
-              }} /></label>)}
-            </fieldset> : <div className="relay-stage-crop-editor">
-              <p>เลือกจากภาพที่ A/B ส่งมา · ไม่เปลี่ยนตำแหน่งหรือขนาดกรอบ Display</p>
-              {streams[active] ? <SenderCropper stream={streams[active]!} crop={cropDraft} shape={cropShape} paused={false} outSize={{ w: 0, h: 0 }} onChange={(c, shape) => { setCropDraft(c); setCropShape(shape); }} onPause={() => {}} showPause={false} previewLabel="ตัวอย่าง Crop ก่อนใช้" /> : <p>รอภาพจากต้นทาง</p>}
-              <p>ตัวอย่างภายในกรอบ Display (รวมการขยายภาพ)</p>
-              <div style={{ aspectRatio: `${activeRect.width * layout.aspect.w} / ${activeRect.height * layout.aspect.h}` }}>{streams[active] && <CroppedVideo stream={streams[active]!} crop={cropDraft} fit={activeRect.fit} zoom={imageDraft.zoom} x={imageDraft.cropX} y={imageDraft.cropY} />}</div>
-              <div className="relay-editor-tools">
-                <button type="button" disabled={!streams[active] || !!activeRect.locked} onClick={() => { updateLayer(active, { sourceCrop: normalizeCrop(cropDraft), ...imageDraft }); setEditMode("display"); }}>ใช้ Crop</button>
-                <button type="button" onClick={() => setEditMode("display")}>ยกเลิก</button>
-                <button type="button" onClick={() => { setCropDraft(FULL_CROP); setCropShape("full"); setImageDraft({ zoom: 100, cropX: 50, cropY: 50 }); }}>Reset Crop</button>
-              </div>
-            </div>}
+            <LayerGeometryControls layer={activeRect} layout={layout} mode={editMode} onChange={next => updateLayer(active, next)} />
             <fieldset disabled={!!activeRect.locked}>
-              <div className="relay-control-tool-row">
-                <button type="button" className="relay-fit-toggle" onClick={() => updateLayer(active, { fit: !activeRect.fit })}>{activeRect.fit ? "พอดีกรอบ" : "เติมเต็มกรอบ"}</button>
-                <button type="button" className="relay-fit-toggle" onClick={() => updateLayer(active, { knockout: !activeRect.knockout })}>ตัดพื้นดำ: {activeRect.knockout ? "เปิด" : "ปิด"}</button>
-              </div>
-              {editMode === "crop" && <>
-                <ControlSlider label="ขยายภาพในกรอบ (ใช้เมื่อยืนยัน Crop)" value={imageDraft.zoom} min={100} max={300} onChange={v => setImageDraft(d => ({ ...d, zoom: v }))} />
-                <ControlSlider label="ตำแหน่งภาพแนวนอน" value={imageDraft.cropX} min={0} max={100} onChange={v => setImageDraft(d => ({ ...d, cropX: v }))} />
-                <ControlSlider label="ตำแหน่งภาพแนวตั้ง" value={imageDraft.cropY} min={0} max={100} onChange={v => setImageDraft(d => ({ ...d, cropY: v }))} />
-              </>}
+              <button type="button" className="relay-fit-toggle" onClick={() => updateLayer(active, { knockout: !activeRect.knockout })}>ตัดพื้นดำ: {activeRect.knockout ? "เปิด" : "ปิด"}</button>
               <ControlSlider label="ความโปร่งใส" value={activeRect.opacity ?? 100} min={10} max={100} onChange={v => updateLayer(active, { opacity: v })} />
             </fieldset>
                         {active === "translation" && <ControlSlider label="ขนาดตัวอักษร (ข้อความสำรอง)" value={layout.fontScale} min={25} max={90} onChange={(v) => setLayout((l) => ({ ...l, fontScale: v }))} icon={<Type size={14} />} />}

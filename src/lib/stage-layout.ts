@@ -1,7 +1,9 @@
 import type { CropRect } from "./screen-crop";
+import { freezeContent, type PixelRect, type SourceSize } from "./stage-geometry";
 export type LayerName = "presentation" | "translation";
-export type Corner = "nw" | "ne" | "sw" | "se";
-export type LayerRect = { x: number; y: number; width: number; height: number; cropX: number; cropY: number; visible: boolean; z: number; fit: boolean; knockout: boolean; opacity?: number; zoom?: number; locked?: boolean; lockAspect?: boolean; sourceCrop?: CropRect };
+export type Corner = "nw" | "ne" | "sw" | "se" | "n" | "s" | "w" | "e";
+/** Mask is stored in stage %. Content is independent stage pixels. Fit/zoom/cropX/Y only migrate old layouts. */
+export type LayerRect = { x: number; y: number; width: number; height: number; cropX: number; cropY: number; visible: boolean; z: number; fit: boolean; knockout: boolean; opacity?: number; zoom?: number; locked?: boolean; lockAspect?: boolean; sourceCrop?: CropRect; content?: PixelRect; sourceSize?: SourceSize };
 export type HoldSlideId = "wait" | "title" | "technical";
 export type HoldTarget = "stage" | LayerName;
 export type HoldTexts = Record<HoldSlideId, { title: string; subtitle: string }>;
@@ -68,11 +70,12 @@ export function resizeFromCorner(start: LayerRect, corner: Corner, dx: number, d
   const right = start.x + start.width;
   const bottom = start.y + start.height;
   let left = start.x, top = start.y, r = right, b = bottom;
-  if (corner.includes("w")) left = clamp(start.x + dx, 0, right - MIN_SIZE); else r = clamp(right + dx, start.x + MIN_SIZE, 100);
-  if (corner.includes("n")) top = clamp(start.y + dy, 0, bottom - MIN_SIZE); else b = clamp(bottom + dy, start.y + MIN_SIZE, 100);
+  if (corner.includes("w")) left = clamp(start.x + dx, 0, right - MIN_SIZE); else if (corner.includes("e")) r = clamp(right + dx, start.x + MIN_SIZE, 100);
+  if (corner.includes("n")) top = clamp(start.y + dy, 0, bottom - MIN_SIZE); else if (corner.includes("s")) b = clamp(bottom + dy, start.y + MIN_SIZE, 100);
   let width = r - left, height = b - top;
   if (keepRatio && start.width > 0) {
     const ratio = start.height / start.width;
+    if (corner === "n" || corner === "s") { width = height / ratio; if (left + width > 100) width = 100 - left; }
     height = width * ratio;
     if (corner.includes("n")) top = bottom - height;
     if (top < 0 || top + height > 100) { height = corner.includes("n") ? bottom : 100 - top; top = corner.includes("n") ? 0 : top; width = height / ratio; if (corner.includes("w")) left = right - width; }
@@ -115,7 +118,12 @@ export function deleteTemplate(storage: Pick<Storage, "getItem" | "setItem">, id
   return next;
 }
 export function applyTemplate(current: StageLayout, template: StageTemplate): StageLayout {
-  return { ...current, ...structuredClone(template.layout) };
+  const next = { ...current, ...structuredClone(template.layout) };
+  for (const name of ["presentation", "translation"] as const) {
+    const layer = next.layers[name], size = current.layers[name].sourceSize;
+    if (!layer.content && size) next.layers[name] = freezeContent({ ...layer, sourceSize: size }, next.aspect, size);
+  }
+  return next;
 }
 export const HOLD_KEY = "botnoi-relay-hold-texts";
 export const HOLD_IMG_KEY = "botnoi-relay-hold-images";
@@ -139,12 +147,13 @@ export function applyArrangement(layout: StageLayout): StageLayout {
   const regions = arrangementRegions(layout.arrangement, layout.split, layout.splitSwap);
   if (!regions) return layout;
   const layers = { ...layout.layers };
-  (Object.keys(regions) as LayerName[]).forEach((n) => { layers[n] = { ...layers[n], ...regions[n], fit: true, visible: layers[n].visible }; });
+  (Object.keys(regions) as LayerName[]).forEach((n) => { layers[n] = { ...freezeContent(layers[n], layout.aspect), ...regions[n] }; });
   return { ...layout, layers };
 }
 
-export function clampToRegion(r: LayerRect, region: Region): LayerRect {
-  const width = Math.min(r.width, region.width), height = Math.min(r.height, region.height);
+export function clampToRegion(r: LayerRect, region: Region, keepRatio = !!r.lockAspect): LayerRect {
+  const factor = Math.min(1, region.width / r.width, region.height / r.height);
+  const width = keepRatio ? r.width * factor : Math.min(r.width, region.width), height = keepRatio ? r.height * factor : Math.min(r.height, region.height);
   const x = clamp(r.x, region.x, region.x + region.width - width);
   const y = clamp(r.y, region.y, region.y + region.height - height);
   return { ...r, x, y, width, height };
