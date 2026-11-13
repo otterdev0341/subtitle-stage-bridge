@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { FileVideo2, Languages, Move } from "lucide-react";
-import { moveRect, resizeFromCorner, type Corner, type LayerName, type LayerRect, type StageLayout } from "@/lib/stage-layout";
+import { arrangementRegions, clampToRegion, moveRect, resizeFromCorner, type Corner, type LayerName, type LayerRect, type StageLayout } from "@/lib/stage-layout";
 
 function useHoldTransition(hold: StageLayout["hold"], cut: boolean) {
   const [shown, setShown] = useState(hold);
@@ -52,7 +52,10 @@ export function StageCanvas({ layout, streams, caption, editable, onSelect, onCh
     if (!d || !box) return;
     const dx = (event.clientX - d.sx) / box.width * 100;
     const dy = (event.clientY - d.sy) / box.height * 100;
-    onChangeLayer?.(d.name, d.mode === "move" ? moveRect(d.start, dx, dy) : resizeFromCorner(d.start, d.mode, dx, dy, event.shiftKey));
+    let next = d.mode === "move" ? moveRect(d.start, dx, dy) : resizeFromCorner(d.start, d.mode, dx, dy, event.shiftKey);
+    const regions = arrangementRegions(layout.arrangement, layout.split, layout.splitSwap);
+    if (regions) next = clampToRegion(next, regions[d.name]);
+    onChangeLayer?.(d.name, next);
   };
   const end = () => { drag.current = null; setDragging(false); };
 

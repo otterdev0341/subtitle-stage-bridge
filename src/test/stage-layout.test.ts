@@ -33,3 +33,27 @@ describe("stage layout", () => {
     expect(deleteTemplate(store, t!.id)).toHaveLength(0);
   });
 });
+
+import { arrangementRegions, clampToRegion } from "@/lib/stage-layout";
+describe("split arrangements", () => {
+  it("stack 75/25", () => {
+    const r = arrangementRegions("stack", 75)!;
+    expect(r.presentation).toEqual({ x: 0, y: 0, width: 100, height: 75 });
+    expect(r.translation).toEqual({ x: 0, y: 75, width: 100, height: 25 });
+  });
+  it("side 70/30", () => {
+    const r = arrangementRegions("side", 70)!;
+    expect(r.presentation).toEqual({ x: 0, y: 0, width: 70, height: 100 });
+    expect(r.translation).toEqual({ x: 70, y: 0, width: 30, height: 100 });
+  });
+  it("swap puts B first and keeps no overlap", () => {
+    const r = arrangementRegions("stack", 75, true)!;
+    expect(r.translation).toEqual({ x: 0, y: 0, width: 100, height: 25 });
+    expect(r.presentation.y).toBe(25);
+  });
+  it("overlay has no regions", () => expect(arrangementRegions("overlay")).toBeNull());
+  it("clamps a dragged rect into its region", () => {
+    const c = clampToRegion({ x: 0, y: 60, width: 100, height: 40, cropX: 50, cropY: 50, visible: true, z: 1, fit: true, knockout: false }, { x: 0, y: 0, width: 100, height: 75 });
+    expect(c.y + c.height).toBeLessThanOrEqual(75);
+  });
+});

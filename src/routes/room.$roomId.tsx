@@ -10,7 +10,7 @@ import { uploadHoldImage as uploadHoldImageFn } from "@/lib/hold-images.function
 import { StageCanvas } from "@/components/stage/StageCanvas";
 import { HoldSlide } from "@/components/stage/HoldSlide";
 import { TemplatePreview } from "@/components/stage/TemplatePreview";
-import { ASPECT_PRESETS, BUILT_IN_TEMPLATES, HOLD_KEY, HOLD_IMG_KEY, HOLD_IMAGE_MAX_BYTES, HOLD_IMAGE_TYPES, applyTemplate, bringToFront, defaultLayout, deleteTemplate, loadTemplates, saveTemplate, sendToBack, swapOrder, TRANSITIONS, type TransitionKind, type HoldSlideId, type HoldTarget, type LayerName, type LayerRect, type StageLayout, type StageTemplate } from "@/lib/stage-layout";
+import { ASPECT_PRESETS, BUILT_IN_TEMPLATES, HOLD_KEY, HOLD_IMG_KEY, applyArrangement, type Arrangement, HOLD_IMAGE_MAX_BYTES, HOLD_IMAGE_TYPES, applyTemplate, bringToFront, defaultLayout, deleteTemplate, loadTemplates, saveTemplate, sendToBack, swapOrder, TRANSITIONS, type TransitionKind, type HoldSlideId, type HoldTarget, type LayerName, type LayerRect, type StageLayout, type StageTemplate } from "@/lib/stage-layout";
 import { roomInviteUrl, roomPath } from "@/lib/room-links";
 
 type RoomView = "director" | "presentation" | "translation" | "stage";
@@ -265,6 +265,9 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     } catch { setUploadError("อัปโหลดไม่สำเร็จ ลองใหม่อีกครั้ง"); }
     finally { setUploading(null); }
   };
+  const arrange = (patch: Partial<Pick<StageLayout, "arrangement" | "split" | "splitSwap">>) => setLayout((l) => applyArrangement({ ...l, ...patch }));
+  const arrangement: Arrangement = layout.arrangement ?? "overlay";
+  const ARRANGEMENTS: Array<[Arrangement, string]> = [["overlay", "ซ้อนทับ"], ["stack", "บน-ล่าง"], ["side", "ซ้าย-ขวา"]];
   const toggleLayer = (name: LayerName) => setLayout((l) => ({ ...l, layers: { ...l.layers, [name]: { ...l.layers[name], visible: !l.layers[name].visible } } }));
   const setHoldText = (id: HoldSlideId, key: "title" | "subtitle", value: string) => setLayout((l) => {
     const holdTexts = { ...l.holdTexts, [id]: { ...l.holdTexts[id], [key]: value } };
@@ -355,6 +358,8 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
               <button key={id} type="button" className={`relay-quick-btn${layout.hold?.id === id ? " is-active" : ""}`} onClick={() => setHold(layout.hold?.id === id ? null : id)}>{layout.holdTexts[id].title} <kbd>{i + 1}</kbd></button>
             ))}
             <span className="relay-status-separator" />
+            {ARRANGEMENTS.map(([v, label]) => <button key={v} type="button" className={`relay-quick-btn${arrangement === v ? " is-active" : ""}`} onClick={() => arrange({ arrangement: v, split: layout.split ?? (v === "side" ? 70 : 75) })}>{label}</button>)}
+            <span className="relay-status-separator" />
             <button type="button" className={`relay-quick-btn relay-quick-toggle${layout.layers.translation.visible ? " is-active" : ""}`} onClick={() => toggleLayer("translation")} title="แสดง/ซ่อนจอคำแปลบนพรีเซนต์">{layout.layers.translation.visible ? <Eye size={13} /> : <EyeOff size={13} />} B {layout.layers.translation.visible ? "แสดง" : "ซ่อน"} <kbd>H</kbd></button>
             <button type="button" className={`relay-quick-btn relay-quick-toggle${layout.layers.presentation.visible ? " is-active" : ""}`} onClick={() => toggleLayer("presentation")} title="แสดง/ซ่อนจอพรีเซนต์">{layout.layers.presentation.visible ? <Eye size={13} /> : <EyeOff size={13} />} A <kbd>P</kbd></button>
             <select className="relay-quick-select" value={holdTarget} aria-label="แสดงสไลด์พักจอที่" onChange={(e) => { const v = e.target.value as HoldTarget; setHoldTarget(v); setLayout((l) => l.hold ? { ...l, hold: { ...l.hold, target: v } } : l); }}>
@@ -386,6 +391,12 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
           {tab === "layer" && (
           <section className="relay-panel-section">
             <div className="relay-panel-section-title"><span>02</span><h3>ปรับจอ {active === "presentation" ? "A · สไลด์" : "B · คำแปล"}</h3></div>
+            <div className="relay-hold-target" role="group" aria-label="รูปแบบการวางจอ">
+              {ARRANGEMENTS.map(([v, label]) => <button key={v} type="button" className={`relay-aspect-chip${arrangement === v ? " is-active" : ""}`} onClick={() => arrange({ arrangement: v, split: layout.split ?? (v === "side" ? 70 : 75) })}>{label}</button>)}
+              {arrangement !== "overlay" && <button type="button" className="relay-aspect-chip" onClick={() => arrange({ splitSwap: !layout.splitSwap })}><ArrowUpDown size={12} /> สลับตำแหน่ง</button>}
+            </div>
+            {arrangement !== "overlay" && <ControlSlider label="สัดส่วนพื้นที่จอ A (%)" value={layout.split ?? 75} min={50} max={90} onChange={(v) => arrange({ split: v })} />}
+            {arrangement !== "overlay" && <p className="relay-hold-note">โหมดไม่ซ้อน: แต่ละจอถูกจำกัดอยู่ในพื้นที่ของตัวเอง เลือก "ซ้อนทับ" เพื่อวางอิสระ</p>}
             <div className="relay-control-tool-row">
               <button type="button" className="relay-fit-toggle" onClick={() => updateLayer(active, { visible: !activeRect.visible })}>{activeRect.visible ? <Eye size={14} /> : <EyeOff size={14} />}<span>{activeRect.visible ? "แสดงอยู่" : "ซ่อนอยู่"}</span></button>
               <button type="button" className="relay-fit-toggle" onClick={() => setLayout((l) => ({ ...l, layers: bringToFront(l.layers, active) }))}><BringToFront size={14} /><span>นำขึ้นหน้า</span></button>

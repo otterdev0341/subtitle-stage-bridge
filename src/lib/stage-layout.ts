@@ -13,7 +13,12 @@ export type StageLayout = {
   holdTexts: HoldTexts;
   transition: TransitionKind;
   holdImages?: Partial<Record<HoldSlideId, string>>;
+  arrangement?: Arrangement;
+  split?: number;
+  splitSwap?: boolean;
 };
+export type Arrangement = "overlay" | "stack" | "side";
+export type Region = { x: number; y: number; width: number; height: number };
 export type TransitionKind = "fade" | "slide" | "zoom" | "cut";
 export const TRANSITIONS: Array<{ id: TransitionKind; label: string }> = [
   { id: "fade", label: "จางเข้า" }, { id: "slide", label: "เลื่อนขึ้น" }, { id: "zoom", label: "ซูม" }, { id: "cut", label: "ตัดทันที" },
@@ -40,6 +45,8 @@ const rect = (x: number, y: number, width: number, height: number, z: number, ex
 export const BUILT_IN_TEMPLATES: StageTemplate[] = [
   { id: "builtin-lower", name: "คำบรรยายแถบล่าง", builtIn: true, layout: { aspect: { w: 1920, h: 1080 }, fontScale: 50, layers: { presentation: rect(0, 0, 100, 100, 1, { fit: true }), translation: rect(10, 78, 80, 18, 2, { knockout: true }) } } },
   { id: "builtin-split", name: "แบ่งครึ่งซ้าย-ขวา", builtIn: true, layout: { aspect: { w: 1920, h: 1080 }, fontScale: 50, layers: { presentation: rect(0, 0, 64, 100, 1, { fit: true }), translation: rect(64, 0, 36, 100, 2) } } },
+  { id: "builtin-stack", name: "บน-ล่าง ไม่ซ้อน", builtIn: true, layout: { aspect: { w: 1920, h: 1080 }, fontScale: 50, arrangement: "stack", split: 75, splitSwap: false, layers: { presentation: rect(0, 0, 100, 75, 1, { fit: true }), translation: rect(0, 75, 100, 25, 2, { fit: true }) } } },
+  { id: "builtin-side", name: "ซ้าย-ขวา ไม่ซ้อน", builtIn: true, layout: { aspect: { w: 1920, h: 1080 }, fontScale: 50, arrangement: "side", split: 70, splitSwap: false, layers: { presentation: rect(0, 0, 70, 100, 1, { fit: true }), translation: rect(70, 0, 30, 100, 2, { fit: true }) } } },
   { id: "builtin-pip", name: "ภาพซ้อนมุมขวา", builtIn: true, layout: { aspect: { w: 1920, h: 1080 }, fontScale: 50, layers: { presentation: rect(0, 0, 100, 100, 1, { fit: true }), translation: rect(64, 64, 32, 30, 2) } } },
 ];
 
@@ -94,7 +101,7 @@ export function loadTemplates(storage: Pick<Storage, "getItem">): StageTemplate[
 }
 export function saveTemplate(storage: Pick<Storage, "getItem" | "setItem">, name: string, layout: StageLayout): StageTemplate[] {
   const list = loadTemplates(storage).filter((t) => t.name !== name);
-  const entry: StageTemplate = { id: crypto.randomUUID(), name, layout: { layers: structuredClone(layout.layers), aspect: { ...layout.aspect }, fontScale: layout.fontScale } };
+  const entry: StageTemplate = { id: crypto.randomUUID(), name, layout: { layers: structuredClone(layout.layers), aspect: { ...layout.aspect }, fontScale: layout.fontScale, arrangement: layout.arrangement ?? "overlay", split: layout.split ?? 75, splitSwap: layout.splitSwap ?? false } };
   const next = [...list, entry];
   storage.setItem(TEMPLATE_KEY, JSON.stringify(next));
   return next;
@@ -111,3 +118,31 @@ export const HOLD_KEY = "botnoi-relay-hold-texts";
 export const HOLD_IMG_KEY = "botnoi-relay-hold-images";
 export const HOLD_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
 export const HOLD_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
+/** Area each screen owns in a split arrangement; null in overlay mode. */
+export function arrangementRegions(arrangement: Arrangement | undefined, split = 75, swap = false): Record<LayerName, Region> | null {
+  if (!arrangement || arrangement === "overlay") return null;
+  const a = clamp(split, 10, 90), b = 100 - a;
+  const first: Region = arrangement === "stack" ? { x: 0, y: 0, width: 100, height: a } : { x: 0, y: 0, width: a, height: 100 };
+  const second: Region = arrangement === "stack" ? { x: 0, y: a, width: 100, height: b } : { x: a, y: 0, width: b, height: 100 };
+  if (!swap) return { presentation: first, translation: second };
+  // swapped: B takes the first slot with the smaller size
+  const bFirst: Region = arrangement === "stack" ? { x: 0, y: 0, width: 100, height: b } : { x: 0, y: 0, width: b, height: 100 };
+  const aSecond: Region = arrangement === "stack" ? { x: 0, y: b, width: 100, height: a } : { x: b, y: 0, width: a, height: 100 };
+  return { presentation: aSecond, translation: bFirst };
+}
+
+export function applyArrangement(layout: StageLayout): StageLayout {
+  const regions = arrangementRegions(layout.arrangement, layout.split, layout.splitSwap);
+  if (!regions) return layout;
+  const layers = { ...layout.layers };
+  (Object.keys(regions) as LayerName[]).forEach((n) => { layers[n] = { ...layers[n], ...regions[n], fit: true, visible: layers[n].visible }; });
+  return { ...layout, layers };
+}
+
+export function clampToRegion(r: LayerRect, region: Region): LayerRect {
+  const width = Math.min(r.width, region.width), height = Math.min(r.height, region.height);
+  const x = clamp(r.x, region.x, region.x + region.width - width);
+  const y = clamp(r.y, region.y, region.y + region.height - height);
+  return { ...r, x, y, width, height };
+}
