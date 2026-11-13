@@ -47,14 +47,13 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
   const roleText = role === "presentation" ? "ภาพพรีเซนต์" : "คำบรรยายแปล";
 
   useEffect(() => {
-    if (role !== "translation" || !screenMode || !connected) return undefined;
+    if (role !== "translation" || !connected) return undefined;
     const timer = window.setTimeout(() => sendCaption(text.trim()), 180);
     return () => window.clearTimeout(timer);
-  }, [connected, role, screenMode, sendCaption, text]);
+  }, [connected, role, sendCaption, text]);
 
   const updateText = (value: string) => {
     setText(value.slice(0, 320));
-    sendCaption(value.slice(0, 320));
   };
 
   const startSharing = async () => {
@@ -198,9 +197,31 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
   const error = session.error || liveError;
 
   useEffect(() => {
+    if (stageOnly && session.layout) {
+      setLayer(session.layout.layer);
+      setVisible(session.layout.visible);
+      setGeometry({
+        x: session.layout.x,
+        y: session.layout.y,
+        width: session.layout.width,
+        height: session.layout.height,
+        cropX: session.layout.cropX,
+        cropY: session.layout.cropY,
+      });
+      setFontScale(session.layout.fontScale);
+      setFitPreview(session.layout.fitPreview);
+    }
+  }, [stageOnly, session.layout]);
+
+  useEffect(() => {
     void session.start(stageOnly ? "translation-display" : "director");
     return () => session.stop();
   }, [roomId, stageOnly, session.start, session.stop]);
+
+  useEffect(() => {
+    if (stageOnly) return;
+    session.sendLayout({ ...geometry, layer, visible, fontScale, fitPreview });
+  }, [stageOnly, geometry, layer, visible, fontScale, fitPreview, session.sendLayout]);
 
   useEffect(() => {
     setSpeakers(participants.flatMap((participant) => participant.stream
@@ -328,7 +349,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     }
   };
 
-  const shareWindow = (view: RoomView) => `${window.location.origin}/room/${roomId}?view=${view}`;
+  const shareWindow = (view: RoomView) => `/room/${encodeURIComponent(roomId)}?view=${view}`;
 
   const layerActions = { presentation, translation };
   const variableGeometry: React.CSSProperties = {
@@ -355,7 +376,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
         {visible && (imageStream || caption) && (
           <div className={`relay-floating-layer ${imageStream ? "has-shared-screen" : "has-translation"}`} style={variableGeometry}>
             {imageStream && <video className="relay-layer-video" ref={(element) => { if (element && element.srcObject !== imageStream) element.srcObject = imageStream; }} autoPlay muted playsInline style={{ objectPosition: cropPosition }} />}
-            {layer === "presentation" && caption && <div className="relay-layer-caption" style={{ "--caption-scale": String(fontScale / 50) } as React.CSSProperties}>{caption}</div>}
+            {caption && <div className="relay-layer-caption" style={{ "--caption-scale": String(fontScale / 50) } as React.CSSProperties}>{caption}</div>}
           </div>
         )}
         <Button variant="ghost" className="relay-audience-fullscreen" onClick={toggleFullscreen} title="เปิดเต็มจอ" aria-label="เปิดเต็มจอ"><Expand size={19} /></Button>
