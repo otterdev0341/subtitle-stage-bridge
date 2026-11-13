@@ -15,9 +15,9 @@ export const Route = createFileRoute("/room/$roomId")({
   }),
   head: ({ params }) => ({
     meta: [
-      { title: `ห้อง ${params.roomId.slice(0, 8)} — Canvas Relay` },
+      { title: `ห้อง ${params.roomId.slice(0, 8)} — Botnoi Relay` },
       { name: "description", content: "เชื่อมภาพพรีเซนต์กับคำบรรยายสดและปรับตำแหน่งได้แบบเรียลไทม์" },
-      { property: "og:title", content: `ห้องถ่ายทอดสด — Canvas Relay` },
+      { property: "og:title", content: `ห้องถ่ายทอดสด — Botnoi Relay` },
       { property: "og:description", content: "ประกอบภาพพรีเซนต์และคำบรรยายแปลจากสองเครื่องบนเวทีเดียวกัน" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
