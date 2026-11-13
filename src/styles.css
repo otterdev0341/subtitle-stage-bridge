@@ -942,3 +942,10 @@
 .relay-exit-fullscreen.is-hidden { opacity: 0; pointer-events: none; }
 .relay-back-console { position: absolute; z-index: 90; top: 16px; left: 16px; display: inline-flex; align-items: center; gap: .4rem; padding: .5rem .85rem; border-radius: 999px; border: 1px solid color-mix(in oklab, var(--relay-canvas-text) 30%, transparent); background: color-mix(in oklab, var(--relay-canvas) 75%, transparent); color: var(--relay-canvas-text); font-size: .8rem; text-decoration: none; transition: opacity .3s; }
 .relay-back-console.is-hidden { opacity: 0; pointer-events: none; }
+.relay-director-body.is-panel-collapsed { grid-template-columns: minmax(0, 1fr) 52px; width: 100%; }
+.relay-control-rail { display: flex; flex-direction: column; align-items: center; gap: .5rem; padding: 1rem .25rem; border-left: 1px solid var(--border); background: color-mix(in oklab, var(--background) 89%, var(--primary)); }
+.relay-rail-toggle { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border); background: var(--background); cursor: pointer; }
+.relay-rail-tab { writing-mode: vertical-rl; padding: .7rem .3rem; border-radius: 8px; font-size: .78rem; color: var(--muted-foreground); background: transparent; border: 0; cursor: pointer; }
+.relay-rail-tab:hover { background: var(--background); color: var(--foreground); }
+.relay-panel-heading .relay-panel-collapse { margin-left: auto; }
+@media (max-width: 900px) { .relay-control-rail, .relay-panel-collapse { display: none !important; } }

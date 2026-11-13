@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ArrowUpDown, BringToFront, Check, ChevronDown, CircleStop, Crop, Expand, Eye, EyeOff, FileVideo2, Languages, Layers, Link2, LoaderCircle, MonitorUp, Pencil, RadioTower, Save, SendToBack, Settings2, Share2, Trash2, Type, ImagePlus, Sun, ZoomIn, Users, X, Zap } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, BringToFront, Check, ChevronDown, ChevronLeft, ChevronRight, CircleStop, Crop, Expand, Eye, EyeOff, FileVideo2, Languages, Layers, Link2, LoaderCircle, MonitorUp, Pencil, RadioTower, Save, SendToBack, Settings2, Share2, Trash2, Type, ImagePlus, Sun, ZoomIn, Users, X, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -286,6 +286,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
   const arrange = (patch: Partial<Pick<StageLayout, "arrangement" | "split" | "splitSwap">>) => setLayout((l) => applyArrangement({ ...l, ...patch }));
   const arrangement: Arrangement = layout.arrangement ?? "overlay";
   const ARRANGEMENTS: Array<[Arrangement, string]> = [["overlay", "อิสระ"], ["stack", "บน-ล่าง"], ["side", "ซ้าย-ขวา"]];
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
   const toggleLayer = (name: LayerName) => setLayout((l) => ({ ...l, layers: { ...l.layers, [name]: { ...l.layers[name], visible: !l.layers[name].visible } } }));
   const setHoldText = (id: HoldSlideId, key: "title" | "subtitle", value: string) => setLayout((l) => {
     const holdTexts = { ...l.holdTexts, [id]: { ...l.holdTexts[id], [key]: value } };
@@ -344,7 +345,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
         </div>
       </header>
 
-      <div className="relay-director-body">
+      <div className={`relay-director-body${panelCollapsed ? " is-panel-collapsed" : ""}`}>
         <section className="relay-stage-workspace">
           <div className="relay-stage-header flex items-center justify-between gap-3">
             <div><span className="relay-overline-small">LIVE COMPOSITION · {layout.aspect.w}×{layout.aspect.h}</span><h1>จัดภาพบนเวที</h1></div>
@@ -394,8 +395,14 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
           <div className="relay-phone-controls-trigger"><Button variant="outline" className="relay-phone-tools" onClick={() => setMobileTools((v) => !v)}><Settings2 size={16} /> จัดการภาพและลิงก์ <ChevronDown size={15} /></Button></div>
         </section>
 
+        {panelCollapsed ? (
+          <aside className="relay-control-rail">
+            <button type="button" className="relay-rail-toggle" onClick={() => setPanelCollapsed(false)} aria-label="ขยายแผงควบคุม" title="ขยายแผงควบคุม"><ChevronLeft size={16} /></button>
+            {PANEL_TABS.map((t) => <button key={t.id} type="button" className="relay-rail-tab" onClick={() => { setTab(t.id); setPanelCollapsed(false); }}>{t.label}</button>)}
+          </aside>
+        ) : (
         <aside className={`relay-control-panel ${mobileTools ? "relay-control-panel-open" : ""}`}>
-          <div className="relay-panel-heading"><div><span className="relay-overline-small">CONTROL ROOM</span><h2>จัดการเวที</h2></div><Button variant="ghost" className="relay-panel-close" aria-label="ปิดเมนูควบคุม" onClick={() => setMobileTools(false)}><X size={17} /></Button></div>
+          <div className="relay-panel-heading"><div><span className="relay-overline-small">CONTROL ROOM</span><h2>จัดการเวที</h2></div><Button variant="ghost" className="relay-panel-collapse" aria-label="ย่อแผงควบคุม" title="ย่อแผงควบคุม" onClick={() => setPanelCollapsed(true)}><ChevronRight size={17} /></Button><Button variant="ghost" className="relay-panel-close" aria-label="ปิดเมนูควบคุม" onClick={() => setMobileTools(false)}><X size={17} /></Button></div>
           <div className="relay-panel-tabs" role="tablist">
             {PANEL_TABS.map((t) => <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={`relay-panel-tab${tab === t.id ? " is-active" : ""}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
           </div>
@@ -508,6 +515,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
 
           <footer className="relay-panel-footer"><span><LockIcon /> ข้อมูลภาพส่งตรงระหว่างเครื่อง</span><a href={shareWindow("stage")} target="_blank" rel="noreferrer">เปิดหน้าจอฉาย <Link2 size={13} /></a></footer>
         </aside>
+        )}
       </div>
     </main>
   );
