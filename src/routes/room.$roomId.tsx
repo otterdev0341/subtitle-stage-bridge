@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowUpDown, BringToFront, Check, ChevronDown, CircleStop, Crop, Expand, Eye, EyeOff, FileVideo2, Languages, Layers, Link2, LoaderCircle, MonitorUp, Pencil, RadioTower, Save, SendToBack, Settings2, Share2, Trash2, Type, ImagePlus, Sun, ZoomIn, Users, X, Zap } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, BringToFront, Check, ChevronDown, CircleStop, Crop, Expand, Eye, EyeOff, FileVideo2, Languages, Layers, Link2, LoaderCircle, MonitorUp, Pencil, RadioTower, Save, SendToBack, Settings2, Share2, Trash2, Type, ImagePlus, Sun, ZoomIn, Users, X, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -322,6 +322,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     return (
       <main ref={audienceRef} className="relay-audience-stage">
         <StageCanvas layout={layout} streams={streams} caption={caption} editable={false} stageRef={stageRef} className="relay-stage-frame-audience" />
+        <a href={roomPath(roomId, "director")} className={`relay-back-console${isFullscreen && !showExit ? " is-hidden" : ""}`} onClick={() => { if (document.fullscreenElement) void document.exitFullscreen(); }}><ArrowLeft size={15} /> กลับหน้าควบคุม</a>
         {isFullscreen ? exitButton : <Button variant="ghost" className="relay-audience-fullscreen" onClick={toggleFullscreen} title="เปิดเต็มจอ" aria-label="เปิดเต็มจอ"><Expand size={19} /></Button>}
       </main>
     );
