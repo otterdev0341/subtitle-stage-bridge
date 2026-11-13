@@ -1,6 +1,6 @@
 export type LayerName = "presentation" | "translation";
 export type Corner = "nw" | "ne" | "sw" | "se";
-export type LayerRect = { x: number; y: number; width: number; height: number; cropX: number; cropY: number; visible: boolean; z: number; fit: boolean; knockout: boolean };
+export type LayerRect = { x: number; y: number; width: number; height: number; cropX: number; cropY: number; visible: boolean; z: number; fit: boolean; knockout: boolean; opacity?: number; zoom?: number };
 export type HoldSlideId = "wait" | "title" | "technical";
 export type HoldTarget = "stage" | LayerName;
 export type HoldTexts = Record<HoldSlideId, { title: string; subtitle: string }>;
@@ -12,12 +12,13 @@ export type StageLayout = {
   hold: { id: HoldSlideId; target: HoldTarget } | null;
   holdTexts: HoldTexts;
   transition: TransitionKind;
+  holdImages?: Partial<Record<HoldSlideId, string>>;
 };
 export type TransitionKind = "fade" | "slide" | "zoom" | "cut";
 export const TRANSITIONS: Array<{ id: TransitionKind; label: string }> = [
   { id: "fade", label: "จางเข้า" }, { id: "slide", label: "เลื่อนขึ้น" }, { id: "zoom", label: "ซูม" }, { id: "cut", label: "ตัดทันที" },
 ];
-export type StageTemplate = { id: string; name: string; builtIn?: boolean; layout: Omit<StageLayout, "hold" | "holdTexts" | "activeLayer" | "transition"> };
+export type StageTemplate = { id: string; name: string; builtIn?: boolean; layout: Omit<StageLayout, "hold" | "holdTexts" | "activeLayer" | "transition" | "holdImages"> };
 
 export const MIN_SIZE = 8;
 export const ASPECT_PRESETS = [
@@ -107,3 +108,6 @@ export function applyTemplate(current: StageLayout, template: StageTemplate): St
   return { ...current, ...structuredClone(template.layout) };
 }
 export const HOLD_KEY = "botnoi-relay-hold-texts";
+export const HOLD_IMG_KEY = "botnoi-relay-hold-images";
+export const HOLD_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
+export const HOLD_IMAGE_MAX_BYTES = 5 * 1024 * 1024;

@@ -931,3 +931,9 @@
 @keyframes relay-slide-in { from { opacity: 0; transform: translateY(12%); } to { opacity: 1; transform: none; } }
 @keyframes relay-zoom-in { from { opacity: 0; transform: scale(1.12); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .relay-hold-anim, .relay-stage-layer { animation: none !important; transition: none !important; } }
+.relay-hold-image { padding: 0; background: var(--relay-canvas); }
+.relay-hold-image img { width: 100%; height: 100%; object-fit: contain; }
+.relay-hold-upload { cursor: pointer; }
+.relay-hold-note { margin: .4rem 0; font-size: .72rem; line-height: 1.4; opacity: .75; }
+.relay-hold-error { color: var(--destructive); opacity: 1; }
+.relay-quick-toggle:not(.is-active) { opacity: .6; text-decoration: line-through; }

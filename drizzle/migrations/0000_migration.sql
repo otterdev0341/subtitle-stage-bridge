@@ -1,0 +1,2 @@
+create policy "Hold slide images readable" on storage.objects for select to anon, authenticated using (bucket_id = 'hold-slides');
+create policy "Hold slide images uploadable" on storage.objects for insert to anon, authenticated with check (bucket_id = 'hold-slides');

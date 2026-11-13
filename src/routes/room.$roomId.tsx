@@ -1,15 +1,16 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowUpDown, BringToFront, Check, ChevronDown, CircleStop, Crop, Expand, Eye, EyeOff, FileVideo2, Languages, Layers, Link2, LoaderCircle, MonitorUp, Pencil, RadioTower, Save, SendToBack, Settings2, Share2, Trash2, Type, Users, X, Zap } from "lucide-react";
+import { ArrowUpDown, BringToFront, Check, ChevronDown, CircleStop, Crop, Expand, Eye, EyeOff, FileVideo2, Languages, Layers, Link2, LoaderCircle, MonitorUp, Pencil, RadioTower, Save, SendToBack, Settings2, Share2, Trash2, Type, ImagePlus, Sun, ZoomIn, Users, X, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useBroadcastSession } from "@/lib/use-broadcast-session";
+import { supabase } from "@/integrations/supabase/client";
 import { StageCanvas } from "@/components/stage/StageCanvas";
 import { HoldSlide } from "@/components/stage/HoldSlide";
 import { TemplatePreview } from "@/components/stage/TemplatePreview";
-import { ASPECT_PRESETS, BUILT_IN_TEMPLATES, HOLD_KEY, applyTemplate, bringToFront, defaultLayout, deleteTemplate, loadTemplates, saveTemplate, sendToBack, swapOrder, TRANSITIONS, type TransitionKind, type HoldSlideId, type HoldTarget, type LayerName, type LayerRect, type StageLayout, type StageTemplate } from "@/lib/stage-layout";
+import { ASPECT_PRESETS, BUILT_IN_TEMPLATES, HOLD_KEY, HOLD_IMG_KEY, HOLD_IMAGE_MAX_BYTES, HOLD_IMAGE_TYPES, applyTemplate, bringToFront, defaultLayout, deleteTemplate, loadTemplates, saveTemplate, sendToBack, swapOrder, TRANSITIONS, type TransitionKind, type HoldSlideId, type HoldTarget, type LayerName, type LayerRect, type StageLayout, type StageTemplate } from "@/lib/stage-layout";
 import { roomInviteUrl, roomPath } from "@/lib/room-links";
 
 type RoomView = "director" | "presentation" | "translation" | "stage";
@@ -203,6 +204,8 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     try {
       const saved = JSON.parse(window.localStorage.getItem(HOLD_KEY) ?? "null");
       if (saved) setLayout((l) => ({ ...l, holdTexts: { ...l.holdTexts, ...saved } }));
+      const imgs = JSON.parse(window.localStorage.getItem(HOLD_IMG_KEY) ?? "null");
+      if (imgs) setLayout((l) => ({ ...l, holdImages: imgs }));
     } catch { /* ignore */ }
   }, []);
 
@@ -240,6 +243,31 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
   const updateLayer = (name: LayerName, patch: Partial<LayerRect>) => setLayout((l) => ({ ...l, layers: { ...l.layers, [name]: { ...l.layers[name], ...patch } } }));
   const select = (name: LayerName) => setLayout((l) => ({ ...l, activeLayer: name }));
   const setHold = (id: HoldSlideId | null) => setLayout((l) => ({ ...l, hold: id ? { id, target: holdTarget } : null }));
+  const [uploading, setUploading] = useState<HoldSlideId | null>(null);
+  const [uploadError, setUploadError] = useState("");
+  const setHoldImage = (id: HoldSlideId, url: string | null) => setLayout((l) => {
+    const holdImages = { ...(l.holdImages ?? {}) };
+    if (url) holdImages[id] = url; else delete holdImages[id];
+    window.localStorage.setItem(HOLD_IMG_KEY, JSON.stringify(holdImages));
+    return { ...l, holdImages };
+  });
+  const uploadHoldImage = async (id: HoldSlideId, file: File | undefined) => {
+    if (!file) return;
+    setUploadError("");
+    if (!HOLD_IMAGE_TYPES.includes(file.type)) { setUploadError("รองรับเฉพาะไฟล์ PNG, JPG หรือ WebP"); return; }
+    if (file.size > HOLD_IMAGE_MAX_BYTES) { setUploadError("ไฟล์ใหญ่เกิน 5 MB"); return; }
+    setUploading(id);
+    try {
+      const path = `${roomId}/${id}-${Date.now()}.${file.type.split("/")[1]}`;
+      const { error: upErr } = await supabase.storage.from("hold-slides").upload(path, file, { contentType: file.type });
+      if (upErr) throw upErr;
+      const { data, error: signErr } = await supabase.storage.from("hold-slides").createSignedUrl(path, 60 * 60 * 24 * 30);
+      if (signErr || !data) throw signErr ?? new Error("no url");
+      setHoldImage(id, data.signedUrl);
+    } catch { setUploadError("อัปโหลดไม่สำเร็จ ลองใหม่อีกครั้ง"); }
+    finally { setUploading(null); }
+  };
+  const toggleLayer = (name: LayerName) => setLayout((l) => ({ ...l, layers: { ...l.layers, [name]: { ...l.layers[name], visible: !l.layers[name].visible } } }));
   const setHoldText = (id: HoldSlideId, key: "title" | "subtitle", value: string) => setLayout((l) => {
     const holdTexts = { ...l.holdTexts, [id]: { ...l.holdTexts[id], [key]: value } };
     window.localStorage.setItem(HOLD_KEY, JSON.stringify(holdTexts));
@@ -252,6 +280,8 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
       const tag = (document.activeElement as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || e.metaKey || e.ctrlKey || e.altKey) return;
       const map: Record<string, HoldSlideId | null> = { "1": "wait", "2": "title", "3": "technical", "0": null };
+      if (e.key === "h" || e.key === "H") { e.preventDefault(); toggleLayer("translation"); return; }
+      if (e.key === "p" || e.key === "P") { e.preventDefault(); toggleLayer("presentation"); return; }
       if (e.key in map) { e.preventDefault(); setLayout((l) => ({ ...l, hold: map[e.key] ? { id: map[e.key]!, target: holdTarget } : null })); }
     };
     window.addEventListener("keydown", onKey);
@@ -326,6 +356,9 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
             {(Object.keys(layout.holdTexts) as HoldSlideId[]).map((id, i) => (
               <button key={id} type="button" className={`relay-quick-btn${layout.hold?.id === id ? " is-active" : ""}`} onClick={() => setHold(layout.hold?.id === id ? null : id)}>{layout.holdTexts[id].title} <kbd>{i + 1}</kbd></button>
             ))}
+            <span className="relay-status-separator" />
+            <button type="button" className={`relay-quick-btn relay-quick-toggle${layout.layers.translation.visible ? " is-active" : ""}`} onClick={() => toggleLayer("translation")} title="แสดง/ซ่อนจอคำแปลบนพรีเซนต์">{layout.layers.translation.visible ? <Eye size={13} /> : <EyeOff size={13} />} B {layout.layers.translation.visible ? "แสดง" : "ซ่อน"} <kbd>H</kbd></button>
+            <button type="button" className={`relay-quick-btn relay-quick-toggle${layout.layers.presentation.visible ? " is-active" : ""}`} onClick={() => toggleLayer("presentation")} title="แสดง/ซ่อนจอพรีเซนต์">{layout.layers.presentation.visible ? <Eye size={13} /> : <EyeOff size={13} />} A <kbd>P</kbd></button>
             <select className="relay-quick-select" value={holdTarget} aria-label="แสดงสไลด์พักจอที่" onChange={(e) => { const v = e.target.value as HoldTarget; setHoldTarget(v); setLayout((l) => l.hold ? { ...l, hold: { ...l.hold, target: v } } : l); }}>
               <option value="stage">ทั้งเวที</option><option value="presentation">แทนจอ A</option><option value="translation">แทนจอ B</option>
             </select>
@@ -368,6 +401,9 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
               <button type="button" className="relay-fit-toggle" onClick={() => updateLayer(active, { fit: !activeRect.fit })}><Crop size={14} /><span>{activeRect.fit ? "พอดีกรอบ" : "ครอปเต็มกรอบ"}</span></button>
               <button type="button" className={`relay-fit-toggle${activeRect.knockout ? " is-on" : ""}`} onClick={() => updateLayer(active, { knockout: !activeRect.knockout })} title="ทำให้พื้นดำโปร่งใส เหมาะกับคำบรรยาย"><Layers size={14} /><span>{activeRect.knockout ? "ตัดพื้นดำ: เปิด" : "ตัดพื้นดำ: ปิด"}</span></button>
             </div>
+            <ControlSlider label="ความโปร่งใส (Opacity)" value={activeRect.opacity ?? 100} min={10} max={100} onChange={(v) => updateLayer(active, { opacity: v })} icon={<Sun size={14} />} />
+            <ControlSlider label={active === "translation" ? "ขยายภาพ / ขนาดตัวอักษร" : "ขยายภาพ (ซูม)"} value={activeRect.zoom ?? 100} min={100} max={300} onChange={(v) => updateLayer(active, { zoom: v })} icon={<ZoomIn size={14} />} />
+            {active === "translation" && <p className="relay-hold-note">จอคำแปลเป็นภาพแชร์จอ จึงปรับขนาดตัวอักษรด้วยการซูม แล้วใช้ครอปเลือกตำแหน่งข้อความ</p>}
             {active === "translation" && <ControlSlider label="ขนาดตัวอักษร (ข้อความสำรอง)" value={layout.fontScale} min={25} max={90} onChange={(v) => setLayout((l) => ({ ...l, fontScale: v }))} icon={<Type size={14} />} />}
           </section>
           )}
@@ -415,14 +451,20 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
                 <button key={v} type="button" className={`relay-aspect-chip${holdTarget === v ? " is-active" : ""}`} onClick={() => { setHoldTarget(v); setLayout((l) => l.hold ? { ...l, hold: { ...l.hold, target: v } } : l); }}>{label}</button>
               ))}
             </div>
+            <p className="relay-hold-note">ภาพที่รองรับ: PNG, JPG, WebP ไม่เกิน 5 MB · ควรใช้สัดส่วนเดียวกับเวที <b>{layout.aspect.w}×{layout.aspect.h}</b> (เช่น 16:9 = 1920×1080) ภาพสัดส่วนอื่นจะถูกวางกลางพร้อมขอบดำ</p>
+            {uploadError && <p className="relay-hold-note relay-hold-error" role="alert">{uploadError}</p>}
             <div className="relay-hold-grid">
               {(Object.keys(layout.holdTexts) as HoldSlideId[]).map((id) => (
                 <div key={id} className={`relay-hold-card${layout.hold?.id === id ? " is-live" : ""}`}>
                   <button type="button" className="relay-hold-thumb" onClick={() => setHold(layout.hold?.id === id ? null : id)} aria-label={`ขึ้นจอ ${layout.holdTexts[id].title}`}>
-                    <HoldSlide id={id} texts={layout.holdTexts} />
+                    <HoldSlide id={id} texts={layout.holdTexts} image={layout.holdImages?.[id]} />
                     <span className="relay-hold-badge">{layout.hold?.id === id ? "กำลังแสดง" : "กดเพื่อขึ้นจอ"}</span>
                   </button>
                   <button type="button" className="relay-hold-edit" onClick={() => setEditingHold(editingHold === id ? null : id)}><Pencil size={12} /> แก้ข้อความ</button>
+                  <label className="relay-hold-edit relay-hold-upload">{uploading === id ? <LoaderCircle size={12} className="animate-spin" /> : <ImagePlus size={12} />} {layout.holdImages?.[id] ? "เปลี่ยนภาพ" : "อัปโหลดภาพ"}
+                    <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={uploading !== null} onChange={(e) => { void uploadHoldImage(id, e.target.files?.[0]); e.target.value = ""; }} />
+                  </label>
+                  {layout.holdImages?.[id] && <button type="button" className="relay-hold-edit" onClick={() => setHoldImage(id, null)}><Trash2 size={12} /> ใช้แบบข้อความ</button>}
                   {editingHold === id && (
                     <div className="relay-hold-editor">
                       <input value={layout.holdTexts[id].title} onChange={(e) => setHoldText(id, "title", e.target.value)} aria-label="หัวข้อ" maxLength={60} />

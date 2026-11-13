@@ -73,15 +73,15 @@ export function StageCanvas({ layout, streams, caption, editable, onSelect, onCh
             <div
               key={name}
               className={`relay-stage-layer relay-stage-layer-${name}${active ? " is-active" : ""}${editable ? " is-editable" : ""}${rect.knockout ? " is-knockout" : ""}`}
-              style={{ left: `${rect.x}%`, top: `${rect.y}%`, width: `${rect.width}%`, height: `${rect.height}%`, zIndex: rect.z }}
+              style={{ left: `${rect.x}%`, top: `${rect.y}%`, width: `${rect.width}%`, height: `${rect.height}%`, zIndex: rect.z, opacity: (rect.opacity ?? 100) / 100 }}
               onPointerDown={begin(name, "move")}
               onPointerMove={move}
               onPointerUp={end}
               onPointerCancel={end}
             >
-              {holdTarget === name && shown && <div key={shown.id} className={`relay-stage-hold-layer ${animClass}`}><HoldSlide id={shown.id} texts={layout.holdTexts} /></div>}
+              {holdTarget === name && shown && <div key={shown.id} className={`relay-stage-hold-layer ${animClass}`}><HoldSlide id={shown.id} texts={layout.holdTexts} image={layout.holdImages?.[shown.id]} /></div>}
               {stream ? (
-                <video className="relay-stage-layer-video" style={{ objectFit: rect.fit ? "contain" : "cover", objectPosition: `${rect.cropX}% ${rect.cropY}%` }} autoPlay muted playsInline ref={(el) => { if (el && el.srcObject !== stream) el.srcObject = stream; }} />
+                <video className="relay-stage-layer-video" style={{ objectFit: rect.fit ? "contain" : "cover", objectPosition: `${rect.cropX}% ${rect.cropY}%`, transform: `scale(${(rect.zoom ?? 100) / 100})`, transformOrigin: `${rect.cropX}% ${rect.cropY}%` }} autoPlay muted playsInline ref={(el) => { if (el && el.srcObject !== stream) el.srcObject = stream; }} />
               ) : name === "translation" && caption ? (
                 <div className="relay-stage-layer-caption" lang="th" style={{ "--caption-scale": String(layout.fontScale / 50) } as React.CSSProperties}>{caption}</div>
               ) : editable ? (
@@ -98,7 +98,7 @@ export function StageCanvas({ layout, streams, caption, editable, onSelect, onCh
             </div>
           );
         })}
-        {holdTarget === "stage" && shown && <div key={shown.id} className={`relay-stage-hold-full ${animClass}`}><HoldSlide id={shown.id} texts={layout.holdTexts} /></div>}
+        {holdTarget === "stage" && shown && <div key={shown.id} className={`relay-stage-hold-full ${animClass}`}><HoldSlide id={shown.id} texts={layout.holdTexts} image={layout.holdImages?.[shown.id]} /></div>}
         {children}
       </div>
     </div>
