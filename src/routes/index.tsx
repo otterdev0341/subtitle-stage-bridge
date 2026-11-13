@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowDown, ArrowUpRight, Check, Clapperboard, Copy, Link2, MonitorUp, RadioTower } from "lucide-react";
 
@@ -26,7 +26,6 @@ function Home() {
   const createRoom = () => {
     const id = crypto.randomUUID();
     setCreatedRoomId(id);
-    void navigate({ to: "/room/$roomId", params: { roomId: id }, search: { view: "director" } });
   };
 
   const enterRoom = () => {
@@ -36,17 +35,15 @@ function Home() {
     }
   };
 
-  const stageHref = createdRoomId
-    ? `/room/${createdRoomId}?view=director`
-    : "";
+  const stageHref = createdRoomId ? `/room/${createdRoomId}?view=director` : "";
 
   const shareHref = (view: "presentation" | "translation") =>
-    createdRoomId ? `${window.location.origin}/room/${createdRoomId}?view=${view}` : "";
+    createdRoomId ? `/room/${createdRoomId}?view=${view}` : "";
 
   const copyLink = async (view: "presentation" | "translation") => {
-    const href = shareHref(view);
-    if (href) {
-      await navigator.clipboard.writeText(href);
+    const path = shareHref(view);
+    if (path) {
+      await navigator.clipboard.writeText(new URL(path, window.location.origin).href);
     }
   };
 
@@ -137,7 +134,7 @@ function Home() {
   );
 }
 
-function RoomShareLink({ number, title, hint, href, icon, onCopy }: { number: string; title: string; hint: string; href: string; icon: React.ReactNode; onCopy: () => void }) {
+function RoomShareLink({ number, title, hint, href, icon, onCopy }: { number: string; title: string; hint: string; href: string; icon: ReactNode; onCopy: () => void }) {
   return (
     <div className="relay-share-link">
       <span className="relay-share-number">{number}</span>

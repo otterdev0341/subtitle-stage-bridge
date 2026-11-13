@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as React from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Check, ChevronDown, CircleStop, Crop, Expand, Eye, EyeOff, FileVideo2, Languages, Link2, LoaderCircle, MonitorUp, Move, RadioTower, Settings2, Share2, Type, Users, X } from "lucide-react";
 
@@ -42,6 +43,7 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
   const [copied, setCopied] = useState(false);
   const [screenMode, setScreenMode] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const captionScreenRef = useRef<HTMLDivElement | null>(null);
   const { connected, participants, error, start, stop, sendCaption } = useBroadcastSession(roomId);
   const roleText = role === "presentation" ? "ภาพพรีเซนต์" : "คำบรรยายแปล";
 
@@ -80,7 +82,7 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
   };
 
   const enterFullscreen = () => {
-    void textareaRef.current?.requestFullscreen?.();
+    void captionScreenRef.current?.requestFullscreen?.();
   };
 
   const copyInvite = async () => {
@@ -91,9 +93,9 @@ function RemoteStation({ roomId, role }: { roomId: string; role: "presentation" 
 
   if (role === "translation" && screenMode) {
     return (
-      <main className="relay-translation-screen relay-translation-share-mode" ref={(element) => { if (element) textareaRef.current = element.querySelector("textarea"); }}>
+      <main className="relay-translation-screen relay-translation-share-mode">
         <div className="relay-translation-topline"><span className="relay-live-dot" /><span>LIVE TRANSLATION</span><span className="relay-screen-room">{roomId.slice(0, 8).toUpperCase()}</span></div>
-        <div className="relay-translation-canvas">
+        <div className="relay-translation-canvas" ref={captionScreenRef}>
           <p className="relay-translation-caption" lang="th">{text || "รอข้อความคำแปล"}</p>
         </div>
         <div className="relay-translation-share-controls">
@@ -174,7 +176,6 @@ type OverlayGeometry = { x: number; y: number; width: number; height: number; cr
 const DEFAULT_GEOMETRY: OverlayGeometry = { x: 62, y: 68, width: 31, height: 24, cropX: 50, cropY: 50 };
 
 function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolean }) {
-  const director = useBroadcastSession(roomId);
   const [layer, setLayer] = useState<LayerName>("translation");
   const [visible, setVisible] = useState(true);
   const [geometry, setGeometry] = useState<OverlayGeometry>(DEFAULT_GEOMETRY);
@@ -186,8 +187,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
   const [speakers, setSpeakers] = useState<Array<{ role: BroadcastRole; stream: MediaStream }>>([]);
   const [previewFit, setPreviewFit] = useState(true);
   const [fitPreview, setFitPreview] = useState(true);
-  const [pointerOffset, setPointerOffset] = useState<{ x: number; y: number } | null>(null);
-  const [activeStreamId, setActiveStreamId] = useState<string | null>(null);
+  const [pointerOffset, setPointerOffset] = useState<{ x: number; y: number; mode: "move" | "resize"; width: number; height: number; stageWidth: number; stageHeight: number } | null>(null);
   const [mobileTools, setMobileTools] = useState(false);
   const [liveError, setLiveError] = useState("");
   const navigate = useNavigate();
@@ -204,7 +204,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
   useEffect(() => {
     void session.start("director");
     return () => session.stop();
-  }, [roomId]);
+  }, [roomId, session.start, session.stop]);
 
   useEffect(() => {
     setSpeakers(participants.flatMap((participant) => participant.stream
@@ -271,13 +271,21 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     event.currentTarget.setPointerCapture(event.pointerId);
     const localX = (event.clientX - stage.left) / stage.width * 100;
     const localY = (event.clientY - stage.top) / stage.height * 100;
-    setPointerOffset({ x: localX - geometry.x, y: localY - geometry.y });
+    setPointerOffset({ x: localX - geometry.x, y: localY - geometry.y, mode: "move", width: geometry.width, height: geometry.height, stageWidth: stage.width, stageHeight: stage.height });
     setActiveDrag(true);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!pointerOffset || !stageRef.current) return;
     const stage = stageRef.current.getBoundingClientRect();
+    if (pointerOffset.mode === "resize") {
+      setGeometry((current) => ({
+        ...current,
+        width: clamp(pointerOffset.width + (event.clientX - (stage.left + geometry.x / 100 * stage.width)) / stage.width * 100, 12, Math.min(90, 100 - current.x)),
+        height: clamp(pointerOffset.height + (event.clientY - (stage.top + geometry.y / 100 * stage.height)) / stage.height * 100, 12, Math.min(70, 100 - current.y)),
+      }));
+      return;
+    }
     setGeometry((current) => ({
       ...current,
       x: clamp((event.clientX - stage.left) / stage.width * 100 - pointerOffset.x, 0, 100 - current.width),
@@ -286,6 +294,16 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
   };
 
   const handlePointerEnd = () => { setPointerOffset(null); setActiveDrag(false); };
+
+  const handleResizePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const stage = stageRef.current?.getBoundingClientRect();
+    if (!stage) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setPointerOffset({ x: 0, y: 0, mode: "resize", width: geometry.width, height: geometry.height, stageWidth: stage.width, stageHeight: stage.height });
+    setActiveDrag(true);
+  };
 
   const setGeometryValue = (key: "width" | "height" | "cropX" | "cropY", value: number) => {
     setGeometry((current) => ({
@@ -317,14 +335,13 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
     setLayer(role);
     setVisible(true);
     setGeometry((current) => ({ ...current, ...(role === "translation" ? { x: 62, y: 68 } : { x: 64, y: 16 }) }));
-    setActiveStreamId(stream.id);
     setLiveError("");
     void navigate({ to: "/room/$roomId", params: { roomId }, search: { view: "director" }, replace: true });
     shareTimeoutRef.current = window.setTimeout(() => setLiveError(""), 1200);
   };
 
   const layerActions = useMemo(() => ({ presentation, translation }), [presentation, translation]);
-  const variableGeometry = {
+  const variableGeometry: React.CSSProperties = {
     "--layer-left": `${geometry.x}%`,
     "--layer-top": `${geometry.y}%`,
     "--layer-width": `${geometry.width}%`,
@@ -334,10 +351,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
 
   useEffect(() => () => {
     if (shareTimeoutRef.current !== null) window.clearTimeout(shareTimeoutRef.current);
-    for (const stream of displayedStreams.current) {
-      if (stream.id === activeStreamId) stream.getTracks().forEach((track) => track.stop());
-    }
-  }, [activeStreamId]);
+  }, []);
 
   if (stageOnly) {
     return (
@@ -398,7 +412,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
                   {!selectedStream && caption && <div className="relay-caption-overlay" lang="th">{caption}</div>}
                   {selectedStream && <div className="relay-layer-caption" style={{ "--caption-scale": String(fontScale / 50) } as React.CSSProperties}>{caption}</div>}
                   {!stageOnly && <div className="relay-layer-tools"><span><Move size={13} /> ลากเพื่อย้าย</span><span className="relay-layer-grip" title="ลากขอบเพื่อปรับขนาด"><Crop size={13} /></span></div>}
-                  {!stageOnly && <button type="button" className="relay-layer-resize" aria-label="ปรับขนาดกรอบ" onPointerDown={(event) => event.stopPropagation()} />}
+                  {!stageOnly && <button type="button" className="relay-layer-resize" aria-label="ปรับขนาดกรอบ" onPointerDown={handleResizePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerEnd} onPointerCancel={handlePointerEnd} />}
                 </div>
               )}
               {!presentation && !selectedStream && !caption && <div className="relay-stage-empty-message"><span><RadioTower size={20} /></span><div><b>เวทีพร้อมถ่ายทอด</b><small>ส่งลิงก์ให้สองเครื่อง เพื่อเริ่มแชร์ภาพ</small></div></div>}
@@ -461,12 +475,12 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
   );
 }
 
-function StageVideo({ stream, videoRef, fit }: { stream: MediaStream | null; videoRef: React.RefObject<HTMLVideoElement | null>; fit: boolean }) {
+function StageVideo({ stream, videoRef, fit }: { stream: MediaStream | null; videoRef: React.MutableRefObject<HTMLVideoElement | null>; fit: boolean }) {
   return (
     <video
       className={`relay-stage-video${fit ? " is-fitted" : ""}`}
       ref={(element) => {
-        if (videoRef) (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = element;
+        if (videoRef) videoRef.current = element;
         if (element && element.srcObject !== stream) element.srcObject = stream;
       }}
       autoPlay
