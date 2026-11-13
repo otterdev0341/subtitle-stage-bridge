@@ -1,11 +1,14 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Check, ChevronDown, CircleStop, Crop, Expand, Eye, EyeOff, FileVideo2, Languages, Link2, LoaderCircle, MonitorUp, Move, RadioTower, Settings2, Share2, Type, Users, X } from "lucide-react";
+import { ArrowUpDown, BringToFront, Check, ChevronDown, CircleStop, Crop, Expand, Eye, EyeOff, FileVideo2, Languages, Layers, LayoutTemplate, Link2, LoaderCircle, MonitorUp, Pencil, RadioTower, Save, SendToBack, Settings2, Share2, Trash2, Type, Users, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { useBroadcastSession, type BroadcastRole } from "@/lib/use-broadcast-session";
+import { useBroadcastSession } from "@/lib/use-broadcast-session";
+import { StageCanvas } from "@/components/stage/StageCanvas";
+import { HoldSlide } from "@/components/stage/HoldSlide";
+import { ASPECT_PRESETS, BUILT_IN_TEMPLATES, HOLD_KEY, applyTemplate, bringToFront, defaultLayout, deleteTemplate, loadTemplates, saveTemplate, sendToBack, swapOrder, type HoldSlideId, type HoldTarget, type LayerName, type LayerRect, type StageLayout, type StageTemplate } from "@/lib/stage-layout";
 import { roomInviteUrl, roomPath } from "@/lib/room-links";
 
 type RoomView = "director" | "presentation" | "translation" | "stage";
@@ -170,27 +173,18 @@ function StationFooter({ connected, roleText, stopSharing }: { connected: boolea
   return <footer className="relay-translation-footbar"><span><span className={connected ? "relay-live-dot" : "relay-status-wait"} /> {roleText} · {connected ? "กำลังถ่ายทอด" : "ยังไม่เชื่อมต่อ"}</span><Button variant="ghost" className="relay-icon-action" onClick={stopSharing} title="หยุดแชร์หน้าจอ" aria-label="หยุดแชร์หน้าจอ"><CircleStop size={17} /></Button></footer>;
 }
 
-type LayerName = "presentation" | "translation";
-type OverlayGeometry = { x: number; y: number; width: number; height: number; cropX: number; cropY: number };
-const DEFAULT_GEOMETRY: OverlayGeometry = { x: 62, y: 68, width: 31, height: 24, cropX: 50, cropY: 50 };
-
 function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolean }) {
-  const [layer, setLayer] = useState<LayerName>("translation");
-  const [visible, setVisible] = useState(true);
-  const [geometry, setGeometry] = useState<OverlayGeometry>(DEFAULT_GEOMETRY);
-  const [fontScale, setFontScale] = useState(50);
+  const [layout, setLayout] = useState<StageLayout>(defaultLayout);
   const [copied, setCopied] = useState<RoomView | null>(null);
   const [fullScreen, setFullScreen] = useState(false);
-  const [activeDrag, setActiveDrag] = useState(false);
-  const [screenStreams, setScreenStreams] = useState<Record<LayerName, MediaStream | null>>({ presentation: null, translation: null });
-  const [speakers, setSpeakers] = useState<Array<{ role: BroadcastRole; stream: MediaStream }>>([]);
-  const [fitPreview, setFitPreview] = useState(false);
-  const [pointerOffset, setPointerOffset] = useState<{ x: number; y: number; mode: "move" | "resize"; width: number; height: number; startX: number; startY: number } | null>(null);
   const [mobileTools, setMobileTools] = useState(false);
   const [liveError, setLiveError] = useState("");
+  const [templates, setTemplates] = useState<StageTemplate[]>([]);
+  const [templateName, setTemplateName] = useState("");
+  const [holdTarget, setHoldTarget] = useState<HoldTarget>("stage");
+  const [editingHold, setEditingHold] = useState<HoldSlideId | null>(null);
   const navigate = useNavigate();
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const stageVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const session = useBroadcastSession(roomId);
   const participants = session.participants;
@@ -198,20 +192,15 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
   const error = session.error || liveError;
 
   useEffect(() => {
-    if (stageOnly && session.layout) {
-      setLayer(session.layout.layer);
-      setVisible(session.layout.visible);
-      setGeometry({
-        x: session.layout.x,
-        y: session.layout.y,
-        width: session.layout.width,
-        height: session.layout.height,
-        cropX: session.layout.cropX,
-        cropY: session.layout.cropY,
-      });
-      setFontScale(session.layout.fontScale);
-      setFitPreview(session.layout.fitPreview);
-    }
+    setTemplates(loadTemplates(window.localStorage));
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(HOLD_KEY) ?? "null");
+      if (saved) setLayout((l) => ({ ...l, holdTexts: { ...l.holdTexts, ...saved } }));
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (stageOnly && session.layout && "layers" in session.layout) setLayout(session.layout);
   }, [stageOnly, session.layout]);
 
   useEffect(() => {
@@ -220,125 +209,35 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
   }, [roomId, stageOnly, session.start, session.stop]);
 
   useEffect(() => {
-    if (stageOnly) return;
-    session.sendLayout({ ...geometry, layer, visible, fontScale, fitPreview });
-  }, [stageOnly, geometry, layer, visible, fontScale, fitPreview, session.sendLayout]);
+    if (!stageOnly) session.sendLayout(layout);
+  }, [stageOnly, layout, session.sendLayout]);
+
+  const streams: Record<LayerName, MediaStream | null> = {
+    presentation: participants.find((p) => p.role === "presentation" && p.stream)?.stream ?? null,
+    translation: participants.find((p) => p.role === "translation" && p.stream)?.stream ?? null,
+  };
 
   useEffect(() => {
-    setSpeakers(participants.flatMap((participant) => participant.stream
-      ? [{ role: participant.role, stream: participant.stream }]
-      : []));
-  }, [participants]);
-
-  useEffect(() => {
-    const keys = ["presentation", "translation"] as const;
-    const next = Object.fromEntries(keys.map((role) => [
-      role,
-      speakers.find((speaker) => speaker.role === role)?.stream ?? null,
-    ])) as Record<LayerName, MediaStream | null>;
-    setScreenStreams((current) => current.presentation === next.presentation && current.translation === next.translation ? current : next);
-  }, [speakers]);
-
-  const presentation = screenStreams.presentation;
-  const translation = screenStreams.translation;
-  const selectedStream = layer === "presentation" ? presentation : translation;
-  const imageStream = layer === "presentation" ? presentation : translation;
-  const remoteRoleStatus = (role: LayerName) => participants.some((participant) => participant.role === role && participant.stream);
-
-  useEffect(() => {
-    const video = stageVideoRef.current;
-    if (video && video.srcObject !== imageStream) video.srcObject = imageStream ?? null;
-  }, [imageStream]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFullScreen(false);
-      if (event.key.toLowerCase() === "f" && !stageOnly && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT") toggleFullscreen();
-    };
     const onFullscreen = () => setFullScreen(document.fullscreenElement === stageRef.current);
-    document.addEventListener("keydown", onKeyDown);
     document.addEventListener("fullscreenchange", onFullscreen);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("fullscreenchange", onFullscreen);
-    };
-  }, [stageOnly]);
+    return () => document.removeEventListener("fullscreenchange", onFullscreen);
+  }, []);
 
   const toggleFullscreen = () => {
-    if (document.fullscreenElement) {
-      void document.exitFullscreen();
-    } else if (stageRef.current) {
-      void stageRef.current.requestFullscreen();
-    }
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void stageRef.current?.requestFullscreen();
   };
 
-  const setMode = (nextLayer: LayerName) => {
-    setLayer(nextLayer);
-    setGeometry((current) => nextLayer === "translation"
-      ? { ...current, x: 62, y: 68 }
-      : { ...current, x: 65, y: 15, width: 28, height: 25 });
-  };
-
-  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (stageOnly || !visible) return;
-    const stage = stageRef.current?.getBoundingClientRect();
-    if (!stage) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const localX = (event.clientX - stage.left) / stage.width * 100;
-    const localY = (event.clientY - stage.top) / stage.height * 100;
-    setPointerOffset({ x: localX - geometry.x, y: localY - geometry.y, mode: "move", width: geometry.width, height: geometry.height, startX: event.clientX, startY: event.clientY });
-    setActiveDrag(true);
-  };
-
-  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!pointerOffset || !stageRef.current) return;
-    const stage = stageRef.current.getBoundingClientRect();
-    if (pointerOffset.mode === "resize") {
-      setGeometry((current) => ({
-        ...current,
-        width: clamp(pointerOffset.width + (event.clientX - pointerOffset.startX) / stage.width * 100, 12, Math.min(90, 100 - current.x)),
-        height: clamp(pointerOffset.height + (event.clientY - pointerOffset.startY) / stage.height * 100, 12, Math.min(70, 100 - current.y)),
-      }));
-      return;
-    }
-    setGeometry((current) => ({
-      ...current,
-      x: clamp((event.clientX - stage.left) / stage.width * 100 - pointerOffset.x, 0, 100 - current.width),
-      y: clamp((event.clientY - stage.top) / stage.height * 100 - pointerOffset.y, 0, 100 - current.height),
-    }));
-  };
-
-  const handlePointerEnd = () => { setPointerOffset(null); setActiveDrag(false); };
-
-  const handleResizePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
-    const stage = stageRef.current?.getBoundingClientRect();
-    if (!stage) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setPointerOffset({ x: 0, y: 0, mode: "resize", width: geometry.width, height: geometry.height, startX: event.clientX, startY: event.clientY });
-    setActiveDrag(true);
-  };
-
-  const handleResizePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!pointerOffset || !stageRef.current || pointerOffset.mode !== "resize") return;
-    const stage = stageRef.current.getBoundingClientRect();
-    setGeometry((current) => ({
-      ...current,
-      width: clamp(pointerOffset.width + (event.clientX - pointerOffset.startX) / stage.width * 100, 12, Math.min(90, 100 - current.x)),
-      height: clamp(pointerOffset.height + (event.clientY - pointerOffset.startY) / stage.height * 100, 12, Math.min(70, 100 - current.y)),
-    }));
-  };
-
-  const setGeometryValue = (key: "width" | "height" | "cropX" | "cropY", value: number) => {
-    setGeometry((current) => ({
-      ...current,
-      [key]: value,
-      ...(key === "width" ? { x: Math.min(current.x, 100 - value) } : {}),
-      ...(key === "height" ? { y: Math.min(current.y, 100 - value) } : {}),
-    }));
-  };
+  const active = layout.activeLayer;
+  const activeRect = layout.layers[active];
+  const updateLayer = (name: LayerName, patch: Partial<LayerRect>) => setLayout((l) => ({ ...l, layers: { ...l.layers, [name]: { ...l.layers[name], ...patch } } }));
+  const select = (name: LayerName) => setLayout((l) => ({ ...l, activeLayer: name }));
+  const setHold = (id: HoldSlideId | null) => setLayout((l) => ({ ...l, hold: id ? { id, target: holdTarget } : null }));
+  const setHoldText = (id: HoldSlideId, key: "title" | "subtitle", value: string) => setLayout((l) => {
+    const holdTexts = { ...l.holdTexts, [id]: { ...l.holdTexts[id], [key]: value } };
+    window.localStorage.setItem(HOLD_KEY, JSON.stringify(holdTexts));
+    return { ...l, holdTexts };
+  });
 
   const copyLink = async (view: RoomView) => {
     try {
@@ -349,49 +248,27 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
       setLiveError("คัดลอกลิงก์ไม่สำเร็จ โปรดคัดลอกจากแถบที่อยู่โดยตรง");
     }
   };
-
   const shareWindow = (view: RoomView) => roomPath(roomId, view);
-
-  const layerActions = { presentation, translation };
-  const variableGeometry: React.CSSProperties = {
-    "--layer-left": `${geometry.x}%`,
-    "--layer-top": `${geometry.y}%`,
-    "--layer-width": `${geometry.width}%`,
-    "--layer-height": `${geometry.height}%`,
-  } as React.CSSProperties;
-  const cropPosition = `${geometry.cropX}% ${geometry.cropY}%`;
 
   if (stageOnly) {
     return (
-      <main ref={stageRef} className="relay-audience-stage" onTouchStart={(event) => {
-        const startX = event.touches[0]?.clientX ?? 0;
-        const end = (changed: TouchEvent) => {
-          const delta = (changed.changedTouches[0]?.clientX ?? startX) - startX;
-          if (Math.abs(delta) > 70) setMode(delta < 0 ? "translation" : "presentation");
-          window.removeEventListener("touchend", end);
-        };
-        window.addEventListener("touchend", end, { once: true });
-      }}>
-        <StageVideo stream={presentation ?? null} videoRef={stageVideoRef} fit={fitPreview} />
-        {!presentation && <StagePlaceholder />}
-        {visible && (imageStream || caption) && (
-          <div className={`relay-floating-layer ${imageStream ? "has-shared-screen" : "has-translation"}`} style={variableGeometry}>
-            {imageStream && <video className="relay-layer-video" ref={(element) => { if (element && element.srcObject !== imageStream) element.srcObject = imageStream; }} autoPlay muted playsInline style={{ objectPosition: cropPosition }} />}
-            {layer === "presentation" && caption && <div className="relay-layer-caption" style={{ "--caption-scale": String(fontScale / 50) } as React.CSSProperties}>{caption}</div>}
-          </div>
-        )}
+      <main className="relay-audience-stage">
+        <StageCanvas layout={layout} streams={streams} caption={caption} editable={false} stageRef={stageRef} className="relay-stage-frame-audience" />
         <Button variant="ghost" className="relay-audience-fullscreen" onClick={toggleFullscreen} title="เปิดเต็มจอ" aria-label="เปิดเต็มจอ"><Expand size={19} /></Button>
       </main>
     );
   }
 
+  const isCustomAspect = !ASPECT_PRESETS.some((p) => p.w === layout.aspect.w && p.h === layout.aspect.h);
+  const allTemplates = [...BUILT_IN_TEMPLATES, ...templates];
+
   return (
     <main className={`relay-director ${fullScreen ? "relay-director-is-fullscreen" : ""}`}>
       <header className="relay-director-topbar">
-        <Link to="/" className="relay-brand" aria-label="กลับหน้าหลัก"><span className="relay-brand-mark"><RadioTower size={17} /></span><span>canvas<span className="relay-brand-light">relay</span></span></Link>
+        <Link to="/" className="relay-brand" aria-label="กลับหน้าหลัก"><span className="relay-brand-mark"><RadioTower size={17} /></span><span>botnoi live<span className="relay-brand-light"> relay</span></span></Link>
         <div className="relay-room-topbar-middle"><span className={`relay-live-dot${session.connected ? "" : " relay-dot-muted"}`} /><span>{session.connected ? "ห้องถ่ายทอดสด" : "เชื่อมต่อห้อง"}</span><span className="relay-room-separator">/</span><span>{roomId.slice(0, 8).toUpperCase()}</span></div>
         <div className="relay-director-top-actions">
-          <span className="relay-participant-count"><Users size={15} /> {participants.filter((participant) => participant.stream).length}</span>
+          <span className="relay-participant-count"><Users size={15} /> {participants.filter((p) => p.stream).length}</span>
           <Button asChild variant="outline" className="relay-share-room-btn"><a href={shareWindow("stage")} target="_blank" rel="noreferrer"><Expand size={15} /> เปิดจอฉาย</a></Button>
           <Button className="relay-director-present" onClick={() => void navigate({ to: "/room/$roomId", params: { roomId }, search: { view: "stage" } })}><Expand size={16} /> จอฉาย</Button>
         </div>
@@ -400,85 +277,117 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
       <div className="relay-director-body">
         <section className="relay-stage-workspace">
           <div className="relay-stage-header flex items-center justify-between gap-3">
-            <div><span className="relay-overline-small">LIVE COMPOSITION</span><h1>จัดภาพบนเวที</h1></div>
+            <div><span className="relay-overline-small">LIVE COMPOSITION · {layout.aspect.w}×{layout.aspect.h}</span><h1>จัดภาพบนเวที</h1></div>
             <div className="relay-stage-quick-actions">
-              <Button variant="ghost" className="relay-stage-action" onClick={() => setVisible((current) => !current)} title={visible ? "ซ่อนคำบรรยาย" : "แสดงคำบรรยาย"} aria-label={visible ? "ซ่อนคำบรรยาย" : "แสดงคำบรรยาย"}>{visible ? <Eye size={16} /> : <EyeOff size={16} />} <span>{visible ? "แสดงคำบรรยาย" : "ซ่อนคำบรรยาย"}</span></Button>
-              <Button variant="ghost" className="relay-icon-action" title="เต็มจอ (F)" aria-label="เปิดเวทีเต็มจอ" onClick={toggleFullscreen}><Expand size={16} /></Button>
+              <div className="relay-ab-switch" role="group" aria-label="เลือกจอที่จะปรับ">
+                <button type="button" className={`relay-ab-chip relay-ab-a${active === "presentation" ? " is-active" : ""}`} onClick={() => select("presentation")}>A · สไลด์</button>
+                <button type="button" className={`relay-ab-chip relay-ab-b${active === "translation" ? " is-active" : ""}`} onClick={() => select("translation")}>B · คำแปล</button>
+              </div>
+              <Button variant="ghost" className="relay-stage-action" onClick={() => setLayout((l) => ({ ...l, layers: swapOrder(l.layers) }))} title="สลับหน้า-หลัง"><ArrowUpDown size={15} /> <span>สลับ A↔B</span></Button>
+              <Button variant="ghost" className="relay-icon-action" title="เต็มจอ" aria-label="เปิดเวทีเต็มจอ" onClick={toggleFullscreen}><Expand size={16} /></Button>
             </div>
           </div>
 
           <div className="relay-composition-shell">
-            <div className={`relay-composition${fullScreen ? " relay-composition-is-fullscreen" : ""}`} ref={stageRef}>
-              <StageVideo stream={presentation} fit={fitPreview} videoRef={stageVideoRef} />
-              {!presentation && <StagePlaceholder />}
-              <div className="relay-stage-safe-frame" aria-hidden="true" />
-              {visible && (selectedStream || caption) && (
-                <div
-                  className={`relay-floating-layer ${activeDrag ? "is-dragging" : ""} ${selectedStream ? "has-shared-screen" : "has-translation"}`}
-                  style={variableGeometry}
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerEnd}
-                  onPointerCancel={handlePointerEnd}
-                >
-                    {selectedStream && <video className="relay-layer-video" ref={(element) => { if (element && element.srcObject !== selectedStream) element.srcObject = selectedStream; }} autoPlay muted playsInline style={{ objectPosition: cropPosition }} />}
-                  {!selectedStream && caption && <div className="relay-caption-overlay" lang="th">{caption}</div>}
-                    {selectedStream && layer === "presentation" && caption && <div className="relay-layer-caption" style={{ "--caption-scale": String(fontScale / 50) } as React.CSSProperties}>{caption}</div>}
-                  {!stageOnly && <div className="relay-layer-tools"><span><Move size={13} /> ลากเพื่อย้าย</span><span className="relay-layer-grip" title="ลากขอบเพื่อปรับขนาด"><Crop size={13} /></span></div>}
-                  {!stageOnly && <button type="button" className="relay-layer-resize" aria-label="ปรับขนาดกรอบ" onPointerDown={handleResizePointerDown} onPointerMove={handleResizePointerMove} onPointerUp={handlePointerEnd} onPointerCancel={handlePointerEnd} />}
-                </div>
-              )}
-              {!presentation && !selectedStream && !caption && <div className="relay-stage-empty-message"><span><RadioTower size={20} /></span><div><b>เวทีพร้อมถ่ายทอด</b><small>ส่งลิงก์ให้สองเครื่อง เพื่อเริ่มแชร์ภาพ</small></div></div>}
-              <div className="relay-composition-chrome"><span><span className="relay-live-dot" /> LIVE</span><span>{roomId.slice(0, 8).toUpperCase()}</span></div>
-            </div>
+            <StageCanvas layout={layout} streams={streams} caption={caption} editable stageRef={stageRef} onSelect={select} onChangeLayer={(name, rect) => updateLayer(name, rect)}>
+              <div className="relay-composition-chrome"><span><span className="relay-live-dot" /> {layout.hold ? "พักจอ" : "LIVE"}</span><span>{roomId.slice(0, 8).toUpperCase()}</span></div>
+            </StageCanvas>
           </div>
 
           <div className="relay-stage-statusline">
-            <div><span className={`relay-connection-light${remoteRoleStatus("presentation") ? " is-online" : ""}`} /><span>จอพรีเซนต์</span><b>{remoteRoleStatus("presentation") ? "LIVE" : "รอจอ"}</b></div>
+            <div><span className={`relay-connection-light${streams.presentation ? " is-online" : ""}`} /><span>จอ A พรีเซนต์</span><b>{streams.presentation ? "LIVE" : "รอจอ"}</b></div>
             <span className="relay-status-separator" />
-            <div><span className={`relay-connection-light${remoteRoleStatus("translation") ? " is-online" : ""}`} /><span>จอคำแปล</span><b>{remoteRoleStatus("translation") ? "LIVE" : "รอจอ"}</b></div>
-            <Button variant="ghost" className="relay-icon-action" title="ปรับขนาดภาพให้พอดี" aria-label="ปรับขนาดภาพให้พอดี" onClick={() => setFitPreview((value) => !value)}><Crop size={15} /></Button>
+            <div><span className={`relay-connection-light${streams.translation ? " is-online" : ""}`} /><span>จอ B คำแปล</span><b>{streams.translation ? "LIVE" : "รอจอ"}</b></div>
+            <span className="relay-status-hint">ลากกลางกรอบเพื่อย้าย · ลากจุดมุมเพื่อย่อ/ขยาย · กด Shift เพื่อคงสัดส่วน</span>
           </div>
 
           {error && <p className="relay-error-notice" role="status">{error}</p>}
-
-          <div className="relay-phone-controls-trigger"><Button variant="outline" className="relay-phone-tools" onClick={() => setMobileTools((value) => !value)}><Settings2 size={16} /> จัดการภาพและลิงก์ <ChevronDown size={15} /></Button></div>
+          <div className="relay-phone-controls-trigger"><Button variant="outline" className="relay-phone-tools" onClick={() => setMobileTools((v) => !v)}><Settings2 size={16} /> จัดการภาพและลิงก์ <ChevronDown size={15} /></Button></div>
         </section>
 
         <aside className={`relay-control-panel ${mobileTools ? "relay-control-panel-open" : ""}`}>
-          <div className="relay-panel-heading"><div><span className="relay-overline-small">CONTROL ROOM</span><h2>จัดการเลเยอร์</h2></div><Button variant="ghost" className="relay-panel-close" aria-label="ปิดเมนูควบคุม" onClick={() => setMobileTools(false)}><X size={17} /></Button></div>
+          <div className="relay-panel-heading"><div><span className="relay-overline-small">CONTROL ROOM</span><h2>จัดการเวที</h2></div><Button variant="ghost" className="relay-panel-close" aria-label="ปิดเมนูควบคุม" onClick={() => setMobileTools(false)}><X size={17} /></Button></div>
 
           <section className="relay-panel-section relay-share-section">
             <div className="relay-panel-section-title"><span>01</span><h3>เชื่อมต่อจอ</h3></div>
-            <ShareControlCard number="A" role="presentation" isConnected={Boolean(presentation)} href={shareWindow("presentation")} copied={copied === "presentation"} copy={() => void copyLink("presentation")} />
-            <ShareControlCard number="B" role="translation" isConnected={Boolean(translation)} href={shareWindow("translation")} copied={copied === "translation"} copy={() => void copyLink("translation")} />
+            <ShareControlCard number="A" role="presentation" isConnected={Boolean(streams.presentation)} href={shareWindow("presentation")} copied={copied === "presentation"} copy={() => void copyLink("presentation")} />
+            <ShareControlCard number="B" role="translation" isConnected={Boolean(streams.translation)} href={shareWindow("translation")} copied={copied === "translation"} copy={() => void copyLink("translation")} />
           </section>
 
-          <section className="relay-panel-section relay-inputs-section">
-            <div className="relay-panel-section-title"><span>02</span><h3>แหล่งภาพซ้อน</h3></div>
-            <div className="relay-layer-select" role="group" aria-label="เลือกภาพซ้อน">
-              <Button variant="ghost" className={`relay-layer-select-button ${layer === "presentation" ? "is-selected" : ""}`} onClick={() => setMode("presentation")}><FileVideo2 size={16} /><span>ภาพพรีเซนต์</span><span className={presentation ? "relay-source-live" : "relay-source-idle"} /></Button>
-              <Button variant="ghost" className={`relay-layer-select-button ${layer === "translation" ? "is-selected" : ""}`} onClick={() => setMode("translation")}><Languages size={16} /><span>คำบรรยายแปล</span><span className={translation ? "relay-source-live" : "relay-source-idle"} /></Button>
-            </div>
-            <div className="relay-translation-live-copy"><span>ข้อความแปลล่าสุด</span><p lang="th">{caption || "ยังไม่มีข้อความแปลเข้ามา"}</p></div>
-          </section>
-
-          <section className="relay-panel-section relay-controls-section">
-            <div className="relay-panel-section-title"><span>03</span><h3>จัดตำแหน่ง</h3></div>
-            <div className="relay-position-instruction"><Move size={15} /><span>ลากกรอบบนเวทีเพื่อย้ายตำแหน่ง</span></div>
-            <ControlSlider label="ความกว้าง" value={geometry.width} onChange={(value) => setGeometryValue("width", value)} />
-            <ControlSlider label="ความสูง" value={geometry.height} onChange={(value) => setGeometryValue("height", value)} />
-            <ControlSlider label="ครอปแนวนอน" value={geometry.cropX} onChange={(value) => setGeometryValue("cropX", value)} />
-            <ControlSlider label="ครอปแนวตั้ง" value={geometry.cropY} onChange={(value) => setGeometryValue("cropY", value)} />
+          <section className="relay-panel-section">
+            <div className="relay-panel-section-title"><span>02</span><h3>ปรับจอ {active === "presentation" ? "A · สไลด์" : "B · คำแปล"}</h3></div>
             <div className="relay-control-tool-row">
-              <button type="button" className="relay-fit-toggle" onClick={() => setFitPreview((value) => !value)}><Crop size={14} /><span>{fitPreview ? "พอดีกรอบ" : "ครอปภาพ"}</span></button>
-              <ControlSlider label="ขนาดตัวอักษร" value={fontScale} min={25} max={90} onChange={setFontScale} icon={<Type size={14} />} />
+              <button type="button" className="relay-fit-toggle" onClick={() => updateLayer(active, { visible: !activeRect.visible })}>{activeRect.visible ? <Eye size={14} /> : <EyeOff size={14} />}<span>{activeRect.visible ? "แสดงอยู่" : "ซ่อนอยู่"}</span></button>
+              <button type="button" className="relay-fit-toggle" onClick={() => setLayout((l) => ({ ...l, layers: bringToFront(l.layers, active) }))}><BringToFront size={14} /><span>นำขึ้นหน้า</span></button>
+              <button type="button" className="relay-fit-toggle" onClick={() => setLayout((l) => ({ ...l, layers: sendToBack(l.layers, active) }))}><SendToBack size={14} /><span>ส่งไปหลัง</span></button>
+            </div>
+            <ControlSlider label="ความกว้าง" value={activeRect.width} min={8} max={100} onChange={(v) => updateLayer(active, { width: v, x: Math.min(activeRect.x, 100 - v) })} />
+            <ControlSlider label="ความสูง" value={activeRect.height} min={8} max={100} onChange={(v) => updateLayer(active, { height: v, y: Math.min(activeRect.y, 100 - v) })} />
+            <ControlSlider label="ครอปแนวนอน" value={activeRect.cropX} min={0} max={100} onChange={(v) => updateLayer(active, { cropX: v })} />
+            <ControlSlider label="ครอปแนวตั้ง" value={activeRect.cropY} min={0} max={100} onChange={(v) => updateLayer(active, { cropY: v })} />
+            <div className="relay-control-tool-row">
+              <button type="button" className="relay-fit-toggle" onClick={() => updateLayer(active, { fit: !activeRect.fit })}><Crop size={14} /><span>{activeRect.fit ? "พอดีกรอบ" : "ครอปเต็มกรอบ"}</span></button>
+              <button type="button" className={`relay-fit-toggle${activeRect.knockout ? " is-on" : ""}`} onClick={() => updateLayer(active, { knockout: !activeRect.knockout })} title="ทำให้พื้นดำโปร่งใส เหมาะกับคำบรรยาย"><Layers size={14} /><span>{activeRect.knockout ? "ตัดพื้นดำ: เปิด" : "ตัดพื้นดำ: ปิด"}</span></button>
+            </div>
+            {active === "translation" && <ControlSlider label="ขนาดตัวอักษร (ข้อความสำรอง)" value={layout.fontScale} min={25} max={90} onChange={(v) => setLayout((l) => ({ ...l, fontScale: v }))} icon={<Type size={14} />} />}
+          </section>
+
+          <section className="relay-panel-section">
+            <div className="relay-panel-section-title"><span>03</span><h3>ความละเอียดเวที</h3></div>
+            <div className="relay-aspect-grid">
+              {ASPECT_PRESETS.map((p) => (
+                <button key={p.label} type="button" className={`relay-aspect-chip${p.w === layout.aspect.w && p.h === layout.aspect.h ? " is-active" : ""}`} onClick={() => setLayout((l) => ({ ...l, aspect: { w: p.w, h: p.h } }))}>{p.label}</button>
+              ))}
+            </div>
+            <div className="relay-aspect-custom">
+              <span>{isCustomAspect ? "กำหนดเอง" : "หรือกำหนดเอง"}</span>
+              <input type="number" min={320} max={7680} value={layout.aspect.w} aria-label="ความกว้าง (พิกเซล)" onChange={(e) => { const w = Number(e.target.value); if (w > 0) setLayout((l) => ({ ...l, aspect: { ...l.aspect, w } })); }} />
+              <span>×</span>
+              <input type="number" min={240} max={4320} value={layout.aspect.h} aria-label="ความสูง (พิกเซล)" onChange={(e) => { const h = Number(e.target.value); if (h > 0) setLayout((l) => ({ ...l, aspect: { ...l.aspect, h } })); }} />
             </div>
           </section>
 
-          <section className="relay-panel-section relay-caption-share-section">
-            <div className="relay-director-caption-row"><Languages size={15} /><div><span>ข้อความคำแปล</span><b>{caption ? "มีข้อความถ่ายทอด" : "รอข้อความจากผู้แปล"}</b></div><span className={`relay-connection-light${caption ? " is-online" : ""}`} /></div>
-            <Button variant="ghost" className="relay-add-layer" onClick={() => setVisible((current) => !current)} disabled={!layerActions[layer]}>{visible ? <EyeOff size={14} /> : <Eye size={14} />} {visible ? "ซ่อนภาพซ้อน" : "แสดงภาพซ้อน"}</Button>
+          <section className="relay-panel-section">
+            <div className="relay-panel-section-title"><span>04</span><h3>เทมเพลต</h3></div>
+            <div className="relay-template-list">
+              {allTemplates.map((t) => (
+                <div key={t.id} className="relay-template-item">
+                  <button type="button" onClick={() => setLayout((l) => applyTemplate(l, t))}><LayoutTemplate size={14} /> {t.name}</button>
+                  {!t.builtIn && <button type="button" aria-label={`ลบเทมเพลต ${t.name}`} onClick={() => setTemplates(deleteTemplate(window.localStorage, t.id))}><Trash2 size={13} /></button>}
+                </div>
+              ))}
+            </div>
+            <form className="relay-template-save" onSubmit={(e) => { e.preventDefault(); const name = templateName.trim(); if (!name) return; setTemplates(saveTemplate(window.localStorage, name, layout)); setTemplateName(""); }}>
+              <input value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="ตั้งชื่อเทมเพลต" maxLength={40} aria-label="ชื่อเทมเพลต" />
+              <Button type="submit" variant="outline" disabled={!templateName.trim()}><Save size={14} /> บันทึก</Button>
+            </form>
+          </section>
+
+          <section className="relay-panel-section">
+            <div className="relay-panel-section-title"><span>05</span><h3>สไลด์พักจอ</h3></div>
+            <div className="relay-hold-target" role="group" aria-label="แสดงที่">
+              {([["stage", "ทั้งเวที"], ["presentation", "แทนจอ A"], ["translation", "แทนจอ B"]] as const).map(([v, label]) => (
+                <button key={v} type="button" className={`relay-aspect-chip${holdTarget === v ? " is-active" : ""}`} onClick={() => { setHoldTarget(v); setLayout((l) => l.hold ? { ...l, hold: { ...l.hold, target: v } } : l); }}>{label}</button>
+              ))}
+            </div>
+            <div className="relay-hold-grid">
+              {(Object.keys(layout.holdTexts) as HoldSlideId[]).map((id) => (
+                <div key={id} className={`relay-hold-card${layout.hold?.id === id ? " is-live" : ""}`}>
+                  <button type="button" className="relay-hold-thumb" onClick={() => setHold(layout.hold?.id === id ? null : id)} aria-label={`ขึ้นจอ ${layout.holdTexts[id].title}`}>
+                    <HoldSlide id={id} texts={layout.holdTexts} />
+                    <span className="relay-hold-badge">{layout.hold?.id === id ? "กำลังแสดง" : "กดเพื่อขึ้นจอ"}</span>
+                  </button>
+                  <button type="button" className="relay-hold-edit" onClick={() => setEditingHold(editingHold === id ? null : id)}><Pencil size={12} /> แก้ข้อความ</button>
+                  {editingHold === id && (
+                    <div className="relay-hold-editor">
+                      <input value={layout.holdTexts[id].title} onChange={(e) => setHoldText(id, "title", e.target.value)} aria-label="หัวข้อ" maxLength={60} />
+                      <input value={layout.holdTexts[id].subtitle} onChange={(e) => setHoldText(id, "subtitle", e.target.value)} aria-label="ข้อความรอง" maxLength={100} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {layout.hold && <Button className="relay-stage-button w-full" onClick={() => setHold(null)}><RadioTower size={15} /> กลับสู่การถ่ายทอด</Button>}
           </section>
 
           <footer className="relay-panel-footer"><span><LockIcon /> ข้อมูลภาพส่งตรงระหว่างเครื่อง</span><a href={shareWindow("stage")} target="_blank" rel="noreferrer">เปิดหน้าจอฉาย <Link2 size={13} /></a></footer>
@@ -486,26 +395,6 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
       </div>
     </main>
   );
-}
-
-function StageVideo({ stream, videoRef, fit }: { stream: MediaStream | null; videoRef: React.MutableRefObject<HTMLVideoElement | null>; fit: boolean }) {
-  return (
-    <video
-      className={`relay-stage-video${fit ? " is-fitted" : ""}`}
-      ref={(element) => {
-        if (videoRef) videoRef.current = element;
-        if (element && element.srcObject !== stream) element.srcObject = stream;
-      }}
-      autoPlay
-      muted
-      playsInline
-      aria-label="ภาพจากจอพรีเซนต์"
-    />
-  );
-}
-
-function StagePlaceholder() {
-  return <div className="relay-stage-placeholder"><div className="relay-placeholder-corner relay-placeholder-top-left" /><div className="relay-placeholder-corner relay-placeholder-bottom-right" /><span className="relay-placeholder-mark"><RadioTower size={21} /></span><p>ภาพเวทีแสดงตรงนี้</p><span className="relay-placeholder-subtitle">ส่งลิงก์ให้เครื่องพรีเซนต์เพื่อเริ่มถ่ายทอด</span></div>;
 }
 
 function ShareControlCard({ number, role, isConnected, href, copied, copy }: { number: string; role: "presentation" | "translation"; isConnected: boolean; href: string; copied: boolean; copy: () => void }) {
@@ -529,8 +418,4 @@ function ControlSlider({ label, value, onChange, min = 12, max = 55, icon }: { l
 
 function LockIcon() {
   return <span aria-label="เชื่อมต่อโดยตรง" className="relay-privacy-mark"><Check size={11} /></span>;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
 }

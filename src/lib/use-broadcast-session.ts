@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import { supabase } from "@/integrations/supabase/client";
+import type { StageLayout } from "@/lib/stage-layout";
 
 export type BroadcastRole = "director" | "presentation" | "translation" | "translation-display";
 type ParticipantRole = Exclude<BroadcastRole, "director">;
@@ -17,18 +18,7 @@ type RoomMessage = {
   layout?: BroadcastLayout;
 };
 type Participant = { id: string; role: ParticipantRole; stream?: MediaStream };
-export type BroadcastLayout = {
-  layer: "presentation" | "translation";
-  visible: boolean;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  cropX: number;
-  cropY: number;
-  fontScale: number;
-  fitPreview: boolean;
-};
+export type BroadcastLayout = StageLayout;
 
 export function useBroadcastSession(roomId: string) {
   const [participants, setParticipants] = useState<Participant[]>([]);
