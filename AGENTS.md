@@ -28,3 +28,5 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+- Broadcast rooms use shared Lovable Cloud Realtime channels for short-lived WebRTC signaling; screen video stays peer-to-peer so captures are neither stored nor relayed through the app.

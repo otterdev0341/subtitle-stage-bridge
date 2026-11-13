@@ -1,0 +1,195 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+
+import { supabase } from "@/integrations/supabase/client";
+
+export type BroadcastRole = "director" | "presentation" | "translation";
+type ParticipantRole = Exclude<BroadcastRole, "director">;
+type RoomMessage = {
+  action?: "hello" | "ready" | "left" | "offer" | "answer" | "candidate" | "caption";
+  from?: string;
+  to?: string;
+  role?: BroadcastRole;
+  sdp?: RTCSessionDescriptionInit;
+  candidate?: RTCIceCandidateInit;
+  text?: string;
+};
+type Participant = { id: string; role: ParticipantRole; stream?: MediaStream };
+
+export function useBroadcastSession(roomId: string) {
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [connected, setConnected] = useState(false);
+  const [error, setError] = useState("");
+  const [caption, setCaption] = useState("");
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const connectionsRef = useRef(new Map<string, RTCPeerConnection>());
+  const candidateQueueRef = useRef(new Map<string, RTCIceCandidateInit[]>());
+  const selfIdRef = useRef("");
+  const roleRef = useRef<BroadcastRole>("director");
+  const streamRef = useRef<MediaStream | null>(null);
+  const activeRef = useRef(false);
+
+  const broadcast = useCallback((message: RoomMessage) => {
+    const channel = channelRef.current;
+    if (channel) void channel.send({ type: "broadcast", event: "room", payload: message });
+  }, []);
+
+  const stop = useCallback(() => {
+    if (!activeRef.current) return;
+    activeRef.current = false;
+    broadcast({ action: "left", from: selfIdRef.current, role: roleRef.current });
+    for (const connection of connectionsRef.current.values()) connection.close();
+    connectionsRef.current.clear();
+    candidateQueueRef.current.clear();
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    const channel = channelRef.current;
+    channelRef.current = null;
+    if (channel) void supabase.removeChannel(channel);
+    setParticipants([]);
+    setConnected(false);
+  }, [broadcast]);
+
+  const sendCaption = useCallback((text: string) => {
+    setCaption(text);
+    broadcast({ action: "caption", from: selfIdRef.current, text });
+  }, [broadcast]);
+
+  const start = useCallback(async (role: BroadcastRole, stream?: MediaStream) => {
+    if (activeRef.current) return;
+    setError("");
+    roleRef.current = role;
+    selfIdRef.current = crypto.randomUUID();
+    streamRef.current = stream ?? null;
+    activeRef.current = true;
+
+    const channel = supabase.channel(`broadcast-room-${roomId}`, {
+      config: { broadcast: { self: false, ack: true } },
+    });
+    channelRef.current = channel;
+
+    const sendSignal = (message: RoomMessage) => {
+      if (channelRef.current) void channel.send({ type: "broadcast", event: "room", payload: message });
+    };
+
+    const createPeer = async (remoteId: string, remoteRole: ParticipantRole) => {
+      const existing = connectionsRef.current.get(remoteId);
+      if (existing) return existing;
+      const connection = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      });
+      connectionsRef.current.set(remoteId, connection);
+      stream?.getTracks().forEach((track) => connection.addTrack(track, stream));
+      connection.onicecandidate = (event) => {
+        if (event.candidate) sendSignal({ action: "candidate", from: selfIdRef.current, to: remoteId, candidate: event.candidate.toJSON() });
+      };
+      connection.ontrack = (event) => {
+        const remoteStream = event.streams[0];
+        if (!remoteStream) return;
+        setParticipants((current) => {
+          const others = current.filter((participant) => participant.id !== remoteId);
+          return [...others, { id: remoteId, role: remoteRole, stream: remoteStream }];
+        });
+      };
+      connection.onconnectionstatechange = () => {
+        if (connection.connectionState === "failed" || connection.connectionState === "closed") {
+          connection.close();
+          connectionsRef.current.delete(remoteId);
+          setParticipants((current) => current.map((participant) => participant.id === remoteId ? { ...participant, stream: undefined } : participant));
+        }
+      };
+      return connection;
+    };
+
+    channel.on("broadcast", { event: "room" }, ({ payload }) => {
+      const message = payload as RoomMessage;
+      const selfId = selfIdRef.current;
+      if (!message.action || message.from === selfId || !activeRef.current) return;
+
+      if (message.action === "caption" && role === "director" && typeof message.text === "string") {
+        setCaption(message.text.slice(0, 500));
+        return;
+      }
+      if (message.action === "hello" && role !== "director" && (role === "presentation" || role === "translation")) {
+        sendSignal({ action: "ready", from: selfId, role });
+        return;
+      }
+      if (message.action === "ready" && role === "director" && message.from &&
+          (message.role === "presentation" || message.role === "translation")) {
+        setParticipants((current) => current.some((participant) => participant.id === message.from)
+          ? current.map((participant) => participant.id === message.from ? { ...participant, role: message.role as ParticipantRole } : participant)
+          : [...current, { id: message.from, role: message.role as ParticipantRole }]);
+        void (async () => {
+          const connection = await createPeer(message.from as string, message.role as ParticipantRole);
+          if (connection.signalingState !== "stable") return;
+          const offer = await connection.createOffer();
+          await connection.setLocalDescription(offer);
+          sendSignal({ action: "offer", from: selfId, to: message.from, sdp: connection.localDescription?.toJSON() });
+        })().catch(() => setError("เชื่อมต่อไม่สำเร็จ ลองออกจากห้องแล้วเริ่มแชร์ใหม่"));
+        return;
+      }
+      if (message.to !== selfId || !message.from) return;
+
+      if (message.action === "offer" && role !== "director" && message.sdp) {
+        void (async () => {
+          const remoteRole: ParticipantRole = message.role === "presentation" ? "presentation" : "translation";
+          const connection = await createPeer(message.from as string, remoteRole);
+          await connection.setRemoteDescription(message.sdp as RTCSessionDescriptionInit);
+          const pending = candidateQueueRef.current.get(message.from as string) ?? [];
+          candidateQueueRef.current.delete(message.from as string);
+          await Promise.all(pending.map((candidate) => connection.addIceCandidate(candidate)));
+          const answer = await connection.createAnswer();
+          await connection.setLocalDescription(answer);
+          sendSignal({ action: "answer", from: selfId, to: message.from, role, sdp: connection.localDescription?.toJSON() });
+        })().catch(() => setError("เปิดการเชื่อมต่อจอไม่สำเร็จ กรุณาเริ่มแชร์อีกครั้ง"));
+        return;
+      }
+      if (message.action === "answer" && role === "director" && message.sdp) {
+        void (async () => {
+          const connection = connectionsRef.current.get(message.from as string);
+          if (!connection || connection.signalingState !== "have-local-offer") return;
+          await connection.setRemoteDescription(message.sdp as RTCSessionDescriptionInit);
+          const pending = candidateQueueRef.current.get(message.from as string) ?? [];
+          candidateQueueRef.current.delete(message.from as string);
+          await Promise.all(pending.map((candidate) => connection.addIceCandidate(candidate)));
+        })().catch(() => setError("รับภาพจากอีกเครื่องไม่สำเร็จ ลองเชื่อมต่ออีกครั้ง"));
+        return;
+      }
+      if (message.action === "candidate" && message.candidate) {
+        const connection = connectionsRef.current.get(message.from as string);
+        if (connection?.remoteDescription) {
+          void connection.addIceCandidate(message.candidate).catch(() => undefined);
+        } else {
+          const queue = candidateQueueRef.current.get(message.from as string) ?? [];
+          if (queue.length < 64) candidateQueueRef.current.set(message.from as string, [...queue, message.candidate]);
+        }
+        return;
+      }
+      if (message.action === "left" && message.from) {
+        connectionsRef.current.get(message.from)?.close();
+        connectionsRef.current.delete(message.from);
+        setParticipants((current) => current.filter((participant) => participant.id !== message.from));
+      }
+    }).subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        setConnected(true);
+        if (role === "director") sendSignal({ action: "hello", from: selfIdRef.current, role });
+        else sendSignal({ action: "ready", from: selfIdRef.current, role });
+      }
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        setConnected(false);
+        setError("เชื่อมต่อห้องไม่ได้ กรุณาตรวจสัญญาณอินเทอร์เน็ตแล้วลองใหม่");
+      }
+    });
+
+    if (stream) {
+      for (const track of stream.getTracks()) {
+        track.addEventListener("ended", () => stop());
+      }
+    }
+  }, [roomId, stop]);
+
+  useEffect(() => () => stop(), [stop]);
+
+  return { participants, connected, error, caption, start, stop, sendCaption, clearError: () => setError("") };
+}
