@@ -285,7 +285,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
   };
   const arrange = (patch: Partial<Pick<StageLayout, "arrangement" | "split" | "splitSwap">>) => setLayout((l) => applyArrangement({ ...l, ...patch }));
   const arrangement: Arrangement = layout.arrangement ?? "overlay";
-  const ARRANGEMENTS: Array<[Arrangement, string]> = [["overlay", "ซ้อนทับ"], ["stack", "บน-ล่าง"], ["side", "ซ้าย-ขวา"]];
+  const ARRANGEMENTS: Array<[Arrangement, string]> = [["overlay", "อิสระ"], ["stack", "บน-ล่าง"], ["side", "ซ้าย-ขวา"]];
   const toggleLayer = (name: LayerName) => setLayout((l) => ({ ...l, layers: { ...l.layers, [name]: { ...l.layers[name], visible: !l.layers[name].visible } } }));
   const setHoldText = (id: HoldSlideId, key: "title" | "subtitle", value: string) => setLayout((l) => {
     const holdTexts = { ...l.holdTexts, [id]: { ...l.holdTexts[id], [key]: value } };
@@ -350,7 +350,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
             <div><span className="relay-overline-small">LIVE COMPOSITION · {layout.aspect.w}×{layout.aspect.h}</span><h1>จัดภาพบนเวที</h1></div>
             <div className="relay-stage-quick-actions">
               <div className="relay-ab-switch" role="group" aria-label="เลือกจอที่จะปรับ">
-                <button type="button" className={`relay-ab-chip relay-ab-a${active === "presentation" ? " is-active" : ""}`} onClick={() => select("presentation")}>A · สไลด์</button>
+                <button type="button" className={`relay-ab-chip relay-ab-a${active === "presentation" ? " is-active" : ""}`} onClick={() => select("presentation")}>A · จอแรก</button>
                 <button type="button" className={`relay-ab-chip relay-ab-b${active === "translation" ? " is-active" : ""}`} onClick={() => select("translation")}>B · จอที่สอง</button>
               </div>
               <Button variant="ghost" className="relay-stage-action" onClick={() => setLayout((l) => ({ ...l, layers: swapOrder(l.layers) }))} title="สลับหน้า-หลัง"><ArrowUpDown size={15} /> <span>สลับ A↔B</span></Button>
@@ -416,7 +416,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
               {arrangement !== "overlay" && <button type="button" className="relay-aspect-chip" onClick={() => arrange({ splitSwap: !layout.splitSwap })}><ArrowUpDown size={12} /> สลับตำแหน่ง</button>}
             </div>
             {arrangement !== "overlay" && <ControlSlider label="สัดส่วนพื้นที่จอ A (%)" value={layout.split ?? 75} min={50} max={90} onChange={(v) => arrange({ split: v })} />}
-            {arrangement !== "overlay" && <p className="relay-hold-note">โหมดไม่ซ้อน: แต่ละจอถูกจำกัดอยู่ในพื้นที่ของตัวเอง เลือก "ซ้อนทับ" เพื่อวางอิสระ</p>}
+            {arrangement !== "overlay" && <p className="relay-hold-note">โหมดไม่ซ้อน: แต่ละจอถูกจำกัดอยู่ในพื้นที่ของตัวเอง เลือก "อิสระ" เพื่อลากย้าย ย่อขยาย และวางซ้อนได้ทุกที่</p>}
             <div className="relay-control-tool-row">
               <button type="button" className="relay-fit-toggle" onClick={() => updateLayer(active, { visible: !activeRect.visible })}>{activeRect.visible ? <Eye size={14} /> : <EyeOff size={14} />}<span>{activeRect.visible ? "แสดงอยู่" : "ซ่อนอยู่"}</span></button>
               <button type="button" className="relay-fit-toggle" onClick={() => setLayout((l) => ({ ...l, layers: bringToFront(l.layers, active) }))}><BringToFront size={14} /><span>นำขึ้นหน้า</span></button>
