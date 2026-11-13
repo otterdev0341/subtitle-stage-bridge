@@ -376,7 +376,7 @@ function DirectorRoom({ roomId, stageOnly }: { roomId: string; stageOnly: boolea
         {visible && (imageStream || caption) && (
           <div className={`relay-floating-layer ${imageStream ? "has-shared-screen" : "has-translation"}`} style={variableGeometry}>
             {imageStream && <video className="relay-layer-video" ref={(element) => { if (element && element.srcObject !== imageStream) element.srcObject = imageStream; }} autoPlay muted playsInline style={{ objectPosition: cropPosition }} />}
-            {caption && <div className="relay-layer-caption" style={{ "--caption-scale": String(fontScale / 50) } as React.CSSProperties}>{caption}</div>}
+            {layer === "presentation" && caption && <div className="relay-layer-caption" style={{ "--caption-scale": String(fontScale / 50) } as React.CSSProperties}>{caption}</div>}
           </div>
         )}
         <Button variant="ghost" className="relay-audience-fullscreen" onClick={toggleFullscreen} title="เปิดเต็มจอ" aria-label="เปิดเต็มจอ"><Expand size={19} /></Button>

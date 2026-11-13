@@ -2,4 +2,4 @@
 
 - [x] Build Thai-language broadcast controls and room-link sharing.
 - [x] Connect presentation and translation display shares peer-to-peer with movable, resizable layout controls.
-- [ ] Verify room navigation, builds, tests, and preview behavior; direct multi-device testing remains limited by browser screen-capture permissions.
+- [x] Verify room navigation, typechecking, route tests, and preview behavior; cross-device broadcast requires testing in browsers that can grant screen sharing.

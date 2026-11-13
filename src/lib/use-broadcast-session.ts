@@ -158,10 +158,6 @@ export function useBroadcastSession(roomId: string) {
         sendSignal({ action: "ready", from: selfId, role });
         return;
       }
-      if (message.action === "hello" && role === "translation-display") {
-        sendSignal({ action: "ready", from: selfId, role });
-        return;
-      }
       if (message.action === "stage-peers" && role === "translation-display" && message.to === selfId) {
         for (const peer of message.peers ?? []) {
           sendSignal({ action: "stage-connect", from: selfId, to: peer.id, role });
@@ -177,22 +173,6 @@ export function useBroadcastSession(roomId: string) {
           await connection.setLocalDescription(offer);
           sendSignal({ action: "offer", from: selfId, to: stageId, role, sdp: offer });
         })().catch(() => setError("ส่งภาพไปยังจอฉายไม่สำเร็จ กรุณาลองเชื่อมต่ออีกครั้ง"));
-        return;
-      }
-      if (message.action === "ready" && role === "translation-display" && message.from &&
-          (message.role === "presentation" || message.role === "translation")) {
-        const remoteId = message.from;
-        const remoteRole = message.role;
-        setParticipants((current) => current.some((participant) => participant.id === remoteId)
-          ? current.map((participant) => participant.id === remoteId ? { ...participant, role: remoteRole } : participant)
-          : [...current, { id: remoteId, role: remoteRole }]);
-        void (async () => {
-          const connection = await createPeer(remoteId, remoteRole);
-          if (connection.signalingState === "have-remote-offer" || connection.signalingState === "have-local-offer") return;
-          const offer = await connection.createOffer();
-          await connection.setLocalDescription(offer);
-          sendSignal({ action: "offer", from: selfId, to: remoteId, role, sdp: offer });
-        })().catch(() => setError("จอฉายเชื่อมต่อแหล่งภาพไม่สำเร็จ กรุณาลองใหม่"));
         return;
       }
       if (message.action === "ready" && role === "director" && message.from &&
