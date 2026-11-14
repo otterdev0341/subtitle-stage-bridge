@@ -51,9 +51,9 @@ describe("five source control room", () => {
     const layout = defaultLayout(),
       onSelect = vi.fn(),
       onToggle = vi.fn();
-    render(
+    const preview = (activeLayer = layout.activeLayer) => (
       <SourcePreview
-        layout={layout}
+        layout={{ ...layout, activeLayer }}
         streams={emptyStreams()}
         onSelect={onSelect}
         onToggle={onToggle}
@@ -64,16 +64,26 @@ describe("five source control room", () => {
         onReplace={() => {}}
         health={{}}
         onHealth={() => {}}
-      />,
+      />
     );
-    expect(screen.getAllByRole("button", { name: /เลือกแก้ไขจอ/ })).toHaveLength(5);
-    fireEvent.click(screen.getByRole("button", { name: "เลือกแก้ไขจอ E" }));
+    const { rerender } = render(preview());
+    expect(screen.getAllByRole("tab")).toHaveLength(5);
+    expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("tab", { name: "จอ E · Source E" }));
     expect(onSelect).toHaveBeenCalledWith("source-e");
     expect(onToggle).not.toHaveBeenCalled();
+    rerender(preview("source-e"));
+    expect(screen.getByRole("tab", { name: "จอ E · Source E" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     fireEvent.click(screen.getByRole("button", { name: "แสดงจอ E ใน LIVE" }));
     expect(onToggle).toHaveBeenCalledWith("source-e");
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(layout.activeLayer).toBe("translation");
+    fireEvent.keyDown(screen.getByRole("tab", { name: "จอ E · Source E" }), { key: "Home" });
+    expect(onSelect).toHaveBeenLastCalledWith("presentation");
+    expect(onToggle).toHaveBeenCalledTimes(1);
   });
   it("supports C–E hide shortcuts without changing their geometry", () => {
     for (const [command, id] of [

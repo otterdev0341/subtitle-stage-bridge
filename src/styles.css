@@ -1091,3 +1091,21 @@
 .relay-source-visibility { min-height: 36px; font-size: 11px; line-height: 1.3; }
 .relay-panel-heading { position: sticky; top: 0; z-index: 4; background: var(--relay-panel, #dfebdf); }
 .relay-stage-layer.is-hidden-layer .relay-stage-hold-layer { opacity: .15; }
+/* Source previews share one visible panel; inactive streams stay mounted. */
+.relay-source-tabs { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 5px; margin-bottom: 8px; }
+.relay-source-tabs [role=tab] { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; padding: 9px 10px; border: 1px solid var(--border); border-bottom: 3px solid transparent; border-radius: 6px 6px 0 0; background: var(--background); text-align: left; font-size: 11px; }
+.relay-source-tabs strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.relay-source-tabs [aria-selected=true] { border-color: var(--source-color); border-bottom-color: var(--source-color); background: color-mix(in srgb,var(--source-color) 13%,var(--background)); }
+.relay-source-tabs [role=tab]:focus-visible { outline: 2px solid var(--source-color); outline-offset: 2px; }
+.relay-tab-status { font-size: 9px; color: var(--muted-foreground); }
+.relay-tab-status.is-on-air { color: #a42d2d; font-weight: 700; }
+.relay-source-tabs small { font-size: 9px; color: #945100; }
+.relay-source-panel { display: grid; grid-template-columns: minmax(0,280px) minmax(0,1fr); gap: 16px; padding: 12px; border: 1px solid var(--source-color); border-radius: 0 0 7px 7px; background: var(--background); }
+.relay-source-panel[hidden] { display: none; }
+.relay-source-panel .relay-source-thumbnail { width: 100%; }
+.relay-source-panel-title { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; font-size: 13px; }
+.relay-source-panel-title span { color: var(--muted-foreground); font-size: 10px; }
+.relay-source-panel .relay-source-actions { flex-direction: row; gap: 8px; padding-top: 8px; }
+.relay-source-panel .relay-source-actions button { flex: 1; padding: 7px; }
+@media(max-width:600px) { .relay-source-tabs { display: flex; overflow-x: auto; } .relay-source-tabs [role=tab] { flex: 0 0 120px; } .relay-source-panel { grid-template-columns: minmax(0,180px) minmax(0,1fr); gap: 10px; padding: 8px; } .relay-source-panel .relay-source-actions { flex-direction: column; } }
+@media(max-width:400px) { .relay-source-panel { grid-template-columns: 1fr; } }

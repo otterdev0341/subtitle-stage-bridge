@@ -113,16 +113,62 @@ export function SourcePreview({
   useEffect(() => {
     if (expanded) dialog.current?.showModal();
   }, [expanded]);
+  const status = (id: SourceId) => {
+    const healthy = Boolean(streams[id]) && health[id] !== false;
+    const layer = layout.layers[id];
+    if (!healthy) return "OFFLINE";
+    if (!layer.visible) return "ซ่อนจาก LIVE";
+    return layout.blackout || layout.hold?.target === "stage" || layout.hold?.target === id
+      ? "พักภาพอยู่"
+      : "ON AIR";
+  };
   return (
     <section className="relay-sources" aria-label="Source Preview A–E">
       <div className="relay-sources-heading">
         <div>
           <h2>Source Preview</h2>
-          <p>ภาพที่แต่ละเครื่องส่งมา · ก่อนผ่าน Mask · เลือกแก้ไขและแสดงใน LIVE แยกกัน</p>
+          <p>เลือกแท็บเพื่อดูภาพต้นทางและแก้ไขจอนั้น · ไม่เปลี่ยนการแสดงใน LIVE</p>
         </div>
         <span>{SOURCES.filter((s) => streams[s.id]).length}/5 เชื่อมต่อ</span>
       </div>
-      <div className="relay-source-grid">
+      <div className="relay-source-tabs" role="tablist" aria-label="เลือกจอ Source Preview">
+        {SOURCES.map((source, index) => (
+          <button
+            key={source.id}
+            type="button"
+            role="tab"
+            id={`source-tab-${source.id}`}
+            aria-label={`จอ ${source.letter} · ${layout.layers[source.id].name || source.name}`}
+            aria-selected={layout.activeLayer === source.id}
+            aria-controls={`source-panel-${source.id}`}
+            tabIndex={layout.activeLayer === source.id ? 0 : -1}
+            style={{ "--source-color": source.color } as CSSProperties}
+            onClick={() => onSelect(source.id)}
+            onKeyDown={(e) => {
+              let next = index;
+              if (e.key === "ArrowRight") next = (index + 1) % SOURCES.length;
+              else if (e.key === "ArrowLeft") next = (index + SOURCES.length - 1) % SOURCES.length;
+              else if (e.key === "Home") next = 0;
+              else if (e.key === "End") next = SOURCES.length - 1;
+              else return;
+              e.preventDefault();
+              onSelect(SOURCES[next]!.id);
+              e.currentTarget.parentElement
+                ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+                [next]?.focus();
+            }}
+          >
+            <strong>{sourceTitle(source.id, layout.layers[source.id].name)}</strong>
+            <span
+              className={`relay-tab-status${status(source.id) === "ON AIR" ? " is-on-air" : ""}`}
+            >
+              {status(source.id)}
+            </span>
+            {candidates.some((p) => p.role === source.id) && <small>มีเครื่องรอใช้ช่องนี้</small>}
+          </button>
+        ))}
+      </div>
+      <div className="relay-source-panels">
         {SOURCES.map((source) => {
           const layer = layout.layers[source.id],
             stream = streams[source.id],
@@ -137,20 +183,14 @@ export function SourcePreview({
           return (
             <article
               key={source.id}
-              className={`relay-source-card${selected ? " is-selected" : ""}`}
+              className="relay-source-panel"
+              role="tabpanel"
+              id={`source-panel-${source.id}`}
+              aria-labelledby={`source-tab-${source.id}`}
+              hidden={!selected}
               style={{ "--source-color": source.color } as CSSProperties}
             >
-              <button
-                type="button"
-                className="relay-source-select"
-                aria-pressed={selected}
-                onClick={() => onSelect(source.id)}
-                aria-label={`เลือกแก้ไขจอ ${source.letter}`}
-              >
-                <span className="relay-source-name">
-                  <strong>{sourceTitle(source.id, layer.name)}</strong>
-                  <span className="relay-source-editing">{selected ? "กำลังแก้ไข" : "เลือกแก้ไข"}</span>
-                </span>
+              <div className="relay-source-panel-preview">
                 <span className="relay-source-thumbnail">
                   {stream ? (
                     <InputVideo
@@ -172,39 +212,45 @@ export function SourcePreview({
                   </span>
                   {stream && !healthy && <span className="relay-source-lost">สัญญาณขาด</span>}
                 </span>
-              </button>
-              <div className="relay-source-meta">
-                {layer.sourceSize && stream
-                  ? `${layer.sourceSize.w}×${layer.sourceSize.h}`
-                  : "รอภาพต้นทาง"}
               </div>
-              <button
-                type="button"
-                className={`relay-source-visibility${layer.visible ? " is-on" : ""}`}
-                aria-label={`${layer.visible ? "ซ่อน" : "แสดง"}จอ ${source.letter} ใน LIVE`}
-                aria-pressed={layer.visible}
-                onClick={() => onToggle(source.id)}
-              >
-                {layer.visible ? "◉ แสดงใน LIVE · กดเพื่อซ่อน" : "○ ซ่อนอยู่ · กดเพื่อแสดง"}
-              </button>
-              <div className="relay-source-actions">
-                <button type="button" onClick={() => onCopy(source.id)}>
-                  {copied === source.id ? "คัดลอกแล้ว" : `ลิงก์ส่งภาพ ${source.letter}`}
+              <div className="relay-source-panel-tools">
+                <div className="relay-source-panel-title">
+                  <strong>{sourceTitle(source.id, layer.name)}</strong>
+                  <span>กำลังดูและแก้ไขจอนี้</span>
+                </div>
+                <div className="relay-source-meta">
+                  {layer.sourceSize && stream
+                    ? `${layer.sourceSize.w}×${layer.sourceSize.h}`
+                    : "รอภาพต้นทาง"}
+                </div>
+                <button
+                  type="button"
+                  className={`relay-source-visibility${layer.visible ? " is-on" : ""}`}
+                  aria-label={`${layer.visible ? "ซ่อน" : "แสดง"}จอ ${source.letter} ใน LIVE`}
+                  aria-pressed={layer.visible}
+                  onClick={() => onToggle(source.id)}
+                >
+                  {layer.visible ? "◉ แสดงใน LIVE · กดเพื่อซ่อน" : "○ ซ่อนอยู่ · กดเพื่อแสดง"}
                 </button>
-                <button type="button" disabled={!stream} onClick={() => setExpanded(source.id)}>
-                  ขยาย Preview
-                </button>
+                <div className="relay-source-actions">
+                  <button type="button" onClick={() => onCopy(source.id)}>
+                    {copied === source.id ? "คัดลอกแล้ว" : `ลิงก์ส่งภาพ ${source.letter}`}
+                  </button>
+                  <button type="button" disabled={!stream} onClick={() => setExpanded(source.id)}>
+                    ขยาย Preview
+                  </button>
+                </div>
+                {candidates
+                  .filter((p) => p.role === source.id)
+                  .map((p) => (
+                    <div className="relay-source-conflict" key={p.id}>
+                      <span>มีเครื่องใหม่รอใช้ช่อง {source.letter}</span>
+                      <button type="button" onClick={() => onReplace(p.id)}>
+                        ใช้เครื่องนี้แทน
+                      </button>
+                    </div>
+                  ))}
               </div>
-              {candidates
-                .filter((p) => p.role === source.id)
-                .map((p) => (
-                  <div className="relay-source-conflict" key={p.id}>
-                    <span>มีเครื่องใหม่รอใช้ช่อง {source.letter}</span>
-                    <button type="button" onClick={() => onReplace(p.id)}>
-                      ใช้เครื่องนี้แทน
-                    </button>
-                  </div>
-                ))}
             </article>
           );
         })}
