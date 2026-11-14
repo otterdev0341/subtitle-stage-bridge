@@ -104,8 +104,7 @@ export function LayerGeometryControls({
                     layout.split,
                     layout.splitSwap,
                   );
-                  const region = regions?.[layout.activeLayer];
-                  const bounded = region ? clampToRegion(next, region) : next;
+                  const bounded = regions ? clampToRegion(next, regions[layout.activeLayer]) : next;
                   onChange(
                     mode === "group" ? translateGroup(stable, bounded, layout.aspect) : bounded,
                   );

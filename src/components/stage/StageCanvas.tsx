@@ -1,4 +1,3 @@
-import { SOURCES, sourceTitle } from "@/lib/sources";
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { FileVideo2, Languages, Move } from "lucide-react";
@@ -48,7 +47,7 @@ import {
 
 type Props = {
   layout: StageLayout;
-  streams: Partial<Record<LayerName, MediaStream | null>>;
+  streams: Record<LayerName, MediaStream | null>;
   caption: string;
   editable: boolean;
   editMode?: StageEditMode;
@@ -64,7 +63,7 @@ type Props = {
 
 const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
 const MASK_HANDLES: Corner[] = [...CORNERS, "n", "s", "w", "e"];
-const label = (name: LayerName, title?: string) => `จอ ${sourceTitle(name, title)}`;
+const LABEL: Record<LayerName, string> = { presentation: "จอ A", translation: "จอ B" };
 
 export function StageCanvas({
   layout,
@@ -141,8 +140,8 @@ export function StageCanvas({
               event.shiftKey || !!d.start.lockAspect,
             );
       const regions = arrangementRegions(layout.arrangement, layout.split, layout.splitSwap);
-      if (regions?.[d.name])
-        next = clampToRegion(next, regions[d.name]!, event.shiftKey || !!d.start.lockAspect);
+      if (regions)
+        next = clampToRegion(next, regions[d.name], event.shiftKey || !!d.start.lockAspect);
       if (d.editMode === "group") next = translateGroup(d.start, next, layout.aspect);
     }
     onChangeLayer?.(d.name, next);
@@ -164,9 +163,9 @@ export function StageCanvas({
     width: `${(selectedContent.width / layout.aspect.w) * 100}%`,
     height: `${(selectedContent.height / layout.aspect.h) * 100}%`,
   };
-  const guides = editable && !shown && !layout.blackout;
+  const guides = editable && selected.visible && !shown && !layout.blackout;
   const ghostClip = `polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, ${selected.x}% ${selected.y}%, ${selected.x}% ${selected.y + selected.height}%, ${selected.x + selected.width}% ${selected.y + selected.height}%, ${selected.x + selected.width}% ${selected.y}%, ${selected.x}% ${selected.y}%)`;
-  const names: LayerName[] = SOURCES.map((s) => s.id);
+  const names: LayerName[] = ["presentation", "translation"];
 
   return (
     <div ref={stageRef} className={`relay-stage-frame ${className ?? ""}`}>
@@ -184,19 +183,19 @@ export function StageCanvas({
         {guides && streams[layout.activeLayer] && (
           <div className="relay-content-ghost" style={{ clipPath: ghostClip }}>
             <div style={{ position: "absolute", ...contentStyle }}>
-              <SourcePlane stream={streams[layout.activeLayer] ?? null} layer={selected} />
+              <SourcePlane stream={streams[layout.activeLayer]} layer={selected} />
             </div>
           </div>
         )}
         {names.map((name) => {
           const rect = layout.layers[name];
-          if (!rect.visible && (!editable || layout.activeLayer !== name)) return null;
-          const stream = streams[name] ?? null;
+          if (!rect.visible) return null;
+          const stream = streams[name];
           const active = editable && layout.activeLayer === name;
           return (
             <div
               key={name}
-              className={`relay-stage-layer relay-stage-layer-${name}${active ? " is-active" : ""}${editable ? " is-editable" : ""}${rect.knockout ? " is-knockout" : ""}${!rect.visible ? " is-hidden-layer" : ""}`}
+              className={`relay-stage-layer relay-stage-layer-${name}${active ? " is-active" : ""}${editable ? " is-editable" : ""}${rect.knockout ? " is-knockout" : ""}`}
               style={{
                 left: `${rect.x}%`,
                 top: `${rect.y}%`,
@@ -231,13 +230,13 @@ export function StageCanvas({
               {!stream && !(name === "translation" && caption) && editable && (
                 <div className="relay-stage-layer-empty relay-empty-overlay">
                   {name === "presentation" ? <FileVideo2 size={20} /> : <Languages size={20} />}
-                  <span>รอภาพจากจอ {sourceTitle(name, rect.name)}</span>
+                  <span>รอภาพจากจอ {name === "presentation" ? "A" : "B"}</span>
                 </div>
               )}
               {editable && (
                 <>
                   <span className="relay-stage-layer-tag">
-                    {label(name, rect.name)} · Mask{active && <Move size={11} />}
+                    {LABEL[name]} · Mask{active && <Move size={11} />}
                   </span>
                   {active &&
                     editMode === "mask" &&
@@ -246,7 +245,7 @@ export function StageCanvas({
                       <span
                         key={c}
                         role="button"
-                        aria-label={`ปรับ Mask ${label(name, rect.name)} ขอบ ${c}`}
+                        aria-label={`ปรับ Mask ${LABEL[name]} ขอบ ${c}`}
                         className={`relay-stage-handle relay-stage-handle-${c}`}
                         onPointerDown={begin(name, c)}
                         onPointerMove={move}
@@ -271,8 +270,7 @@ export function StageCanvas({
             onLostPointerCapture={end}
           >
             <span className="relay-content-guide-label">
-              {sourceTitle(layout.activeLayer, selected.name)} · Content ·{" "}
-              {Math.round(selectedContent.width)}×{Math.round(selectedContent.height)}
+              Content · {Math.round(selectedContent.width)}×{Math.round(selectedContent.height)}
             </span>
             {editMode === "content" &&
               !selected.locked &&
