@@ -12,6 +12,9 @@ export const SHOW_ACTIONS = [
   ["slot5", "Layout 5", "8"],
   ["toggleB", "แสดง/ซ่อน B", "H"],
   ["toggleA", "แสดง/ซ่อน A", "P"],
+  ["toggleC", "แสดง/ซ่อน C", "C"],
+  ["toggleD", "แสดง/ซ่อน D", "D"],
+  ["toggleE", "แสดง/ซ่อน E", "E"],
   ["blackout", "จอดำ", "K"],
 ] as const;
 export type ShowCommand = (typeof SHOW_ACTIONS)[number][0];
@@ -29,8 +32,22 @@ export function reduceShowCommand(layout: StageLayout, command: ShowCommand): St
   if (command === "blackout") return { ...layout, blackout: !layout.blackout };
   if (command === "wait" || command === "title" || command === "technical")
     return { ...layout, hold: { id: command, target: "stage" }, blackout: false };
-  if (command === "toggleA" || command === "toggleB") {
-    const name = command === "toggleA" ? "presentation" : "translation";
+  if (
+    command === "toggleA" ||
+    command === "toggleB" ||
+    command === "toggleC" ||
+    command === "toggleD" ||
+    command === "toggleE"
+  ) {
+    const name = (
+      {
+        toggleA: "presentation",
+        toggleB: "translation",
+        toggleC: "source-c",
+        toggleD: "source-d",
+        toggleE: "source-e",
+      } as const
+    )[command];
     return {
       ...layout,
       layers: {

@@ -7,6 +7,7 @@ import { reduceShowCommand } from "@/lib/show-controls";
 
 type Packet = {
   action?: string;
+  role?: string;
   from?: string;
   to?: string;
   requestId?: string;
@@ -53,6 +54,7 @@ import { useBroadcastSession } from "@/lib/use-broadcast-session";
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
   bus.channels = [];
   bus.messages = [];
 });
@@ -132,5 +134,104 @@ describe("stage → director → all stage screens", () => {
     act(() => vi.advanceTimersByTime(4000));
     expect(stage.result.current.error).toContain("หน้าควบคุมไม่ตอบรับ");
     expect(stage.result.current.commandPending).toBe(false);
+  });
+});
+
+describe("five-input admission and program-only output", () => {
+  it("limits each slot to one sender, replaces explicitly, and sends only program to Presenter", async () => {
+    const created: FakePeer[] = [];
+    class FakePeer {
+      connectionState = "new";
+      signalingState = "stable";
+      localDescription: RTCSessionDescriptionInit | null = null;
+      remoteDescription: RTCSessionDescriptionInit | null = null;
+      onconnectionstatechange: (() => void) | null = null;
+      onicecandidate = null;
+      ontrack = null;
+      senders: Array<{ track: MediaStreamTrack; replaceTrack: ReturnType<typeof vi.fn> }> = [];
+      constructor() {
+        created.push(this);
+      }
+      addTrack(track: MediaStreamTrack) {
+        this.senders.push({ track, replaceTrack: vi.fn().mockResolvedValue(undefined) });
+      }
+      getSenders() {
+        return this.senders;
+      }
+      addTransceiver() {}
+      async createOffer(): Promise<RTCSessionDescriptionInit> {
+        return { type: "offer", sdp: "test" };
+      }
+      async setLocalDescription(sdp: RTCSessionDescriptionInit) {
+        this.localDescription = sdp;
+        this.signalingState = "have-local-offer";
+      }
+      close() {
+        this.connectionState = "closed";
+      }
+    }
+    vi.stubGlobal("RTCPeerConnection", FakePeer);
+    const handler = vi.fn(() => defaultLayout());
+    const director = renderHook(() => useBroadcastSession("five", handler));
+    await act(async () => {
+      await director.result.current.start("director");
+    });
+    const receiver = bus.channels[0]!;
+    const ids = ["presentation", "translation", "source-c", "source-d", "source-e"];
+    await act(async () => {
+      ids.forEach((role, i) =>
+        receiver.handler({ payload: { action: "ready", from: `sender${i}`, role } }),
+      );
+    });
+    expect(director.result.current.participants).toHaveLength(5);
+    expect(created).toHaveLength(5);
+    expect(created.every((pc) => pc.senders.length === 0)).toBe(true);
+    await act(async () =>
+      receiver.handler({ payload: { action: "ready", from: "sixth", role: "source-f" } }),
+    );
+    expect(created).toHaveLength(5);
+    await act(async () =>
+      receiver.handler({ payload: { action: "ready", from: "replacement", role: "source-e" } }),
+    );
+    expect(created).toHaveLength(5);
+    expect(director.result.current.candidates).toEqual([{ id: "replacement", role: "source-e" }]);
+    await act(async () => director.result.current.acceptSource("replacement"));
+    expect(director.result.current.participants).toHaveLength(5);
+    expect(created[4]!.connectionState).toBe("closed");
+    const programTrack = { kind: "video", id: "PROGRAM" } as MediaStreamTrack;
+    const program = {
+      getTracks: () => [programTrack],
+      getVideoTracks: () => [programTrack],
+    } as unknown as MediaStream;
+    await act(async () => {
+      director.result.current.publishProgram(program);
+      receiver.handler({ payload: { action: "ready", from: "viewer", role: "presenter" } });
+    });
+    const viewer = created.at(-1)!;
+    expect(viewer.senders.map((s) => s.track.id)).toEqual(["PROGRAM"]);
+    act(() =>
+      receiver.handler({
+        payload: {
+          action: "command",
+          from: "viewer",
+          role: "presenter",
+          requestId: "bad",
+          command: "blackout",
+        } as Packet,
+      }),
+    );
+    expect(handler).not.toHaveBeenCalled();
+    act(() =>
+      receiver.handler({ payload: { action: "left", from: "sender0", role: "presentation" } }),
+    );
+    expect(director.result.current.participants.some((p) => p.id === "sender0")).toBe(false);
+  });
+  it("Presenter API cannot send show-control commands", async () => {
+    const presenter = renderHook(() => useBroadcastSession("readonly"));
+    await act(async () => {
+      await presenter.result.current.start("presenter");
+    });
+    act(() => presenter.result.current.sendCommand("blackout"));
+    expect(bus.messages.some((m) => m.action === "command")).toBe(false);
   });
 });
