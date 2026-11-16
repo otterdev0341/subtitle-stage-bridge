@@ -11,6 +11,8 @@ type Packet = {
   to?: string;
   requestId?: string;
   layout?: StageLayout;
+  layoutSequence?: number;
+  role?: string;
 };
 type Envelope = { payload: Packet };
 type Channel = {
@@ -57,6 +59,62 @@ afterEach(() => {
   bus.messages = [];
 });
 describe("stage → director → all stage screens", () => {
+  it("replays caption state to late outputs and ignores an older Program packet", async () => {
+    const { defaultCaption, publishCaption } = await import("@/lib/captions");
+    const director = renderHook(() => useBroadcastSession("captions"));
+    const first = renderHook(() => useBroadcastSession("captions"));
+    const state = {
+      ...defaultLayout(),
+      captions: publishCaption(defaultCaption(), "ต้นฉบับ", "Latest caption"),
+    };
+    await act(async () => {
+      await director.result.current.start("director");
+      director.result.current.sendLayout(defaultLayout());
+      await first.result.current.start("translation-display");
+    });
+    const old = bus.messages.find((packet) => packet.action === "layout")!;
+    act(() => director.result.current.sendLayout(state));
+    expect(first.result.current.layout?.captions?.text).toBe("Latest caption");
+    act(() => bus.channels[1]!.handler({ payload: old }));
+    expect(first.result.current.layout?.captions?.text).toBe("Latest caption");
+    const late = renderHook(() => useBroadcastSession("captions"));
+    await act(async () => {
+      await late.result.current.start("translation-display");
+    });
+    expect(late.result.current.layout?.captions).toEqual(state.captions);
+    await act(async () => {
+      first.result.current.stop();
+      await first.result.current.start("translation-display");
+    });
+    expect(first.result.current.layout?.captions).toEqual(state.captions);
+  });
+  it("recovers a refreshed director after a lost leave packet without accepting an old sequence", async () => {
+    vi.useFakeTimers();
+    const director = renderHook(() => useBroadcastSession("refresh"));
+    const output = renderHook(() => useBroadcastSession("refresh"));
+    await act(async () => {
+      await director.result.current.start("director");
+      director.result.current.sendLayout(defaultLayout());
+      director.result.current.sendLayout(defaultLayout());
+      await output.result.current.start("translation-display");
+    });
+    vi.setSystemTime(Date.now() + 13_000);
+    const resumed = { ...defaultLayout(), blackout: true };
+    act(() => {
+      bus.channels[1]!.handler({
+        payload: { action: "hello", from: "refreshed-director", role: "director" },
+      });
+      bus.channels[1]!.handler({
+        payload: {
+          action: "layout",
+          from: "refreshed-director",
+          layoutSequence: 1,
+          layout: resumed,
+        },
+      });
+    });
+    expect(output.result.current.layout?.blackout).toBe(true);
+  });
   it("shares independent Content/Mask geometry with late screens and custom scene shortcuts", async () => {
     let state = defaultLayout();
     state.layers.translation = {

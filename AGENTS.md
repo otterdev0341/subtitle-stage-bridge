@@ -31,5 +31,6 @@ use the editor.
 
 - Broadcast rooms use shared Lovable Cloud Realtime channels for short-lived WebRTC signaling; screen video stays peer-to-peer so captures are neither stored nor relayed through the app.
 - Generate copied room invitations with the shared URL helper and the browser's web origin inside click handlers; keep navigation paths relative so SSR stays safe and recipients receive complete web links.
-- Stage composition is one serializable StageLayout (two layers A/B with z-order, aspect, hold slide) in src/lib/stage-layout.ts, broadcast whole via the existing layout signal; templates live in the director's localStorage so no login is needed.
-- Screen A/B senders crop on their own device: the raw capture is drawn into a canvas (worker-timed so background tabs keep sending) and only the canvas stream is sent, so pixels outside the crop never leave the sender.
+- Stage composition is one serializable StageLayout (five source layers A–E, independent caption track, z-order, aspect and hold slide) in src/lib/stage-layout.ts. Broadcast authoritative Program only; draft selection and geometry stay local until TAKE. Templates live in localStorage and the current Program is recovered from the director tab's sessionStorage.
+- Screen A–E senders crop on their own device: the raw capture is drawn into a canvas (worker-timed so background tabs keep sending) and only the canvas stream is sent, so pixels outside the crop never leave the sender.
+- Gemini translation runs through server functions and Lovable's AI gateway; only explicitly selected audio/text enters translation. Audio capture uses bounded WAV segments, not a continuous Gemini Live connection. Keep caption sequence/order and Program replay intact for late and reconnected outputs.
