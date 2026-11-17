@@ -22,8 +22,12 @@ type Channel = {
   send: (message: Envelope) => Promise<string>;
 };
 const bus = vi.hoisted(() => ({ channels: [] as Channel[], messages: [] as Packet[] }));
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
+vi.mock("@/lib/realtime-room", () => ({
+  workerInterval: (callback: () => void, ms: number) => {
+    const id = setInterval(callback, ms);
+    return () => clearInterval(id);
+  },
+  roomRealtime: () => ({
     channel: () => {
       const channel: Channel = {
         handler: () => {},
@@ -48,7 +52,7 @@ vi.mock("@/integrations/supabase/client", () => ({
     removeChannel: (channel: Channel) => {
       bus.channels = bus.channels.filter((c) => c !== channel);
     },
-  },
+  }),
 }));
 import { useBroadcastSession } from "@/lib/use-broadcast-session";
 

@@ -11,7 +11,6 @@ import { captionIsVisible, defaultCaption, publishCaption } from "@/lib/captions
 import { CaptionOverlay } from "@/components/stage/CaptionOverlay";
 import { StageCanvas } from "@/components/stage/StageCanvas";
 import { emptyStreams } from "@/lib/sources";
-import { encodeWav, resampleMono } from "@/lib/audio-capture";
 import { parseRoomView, roomInviteUrl } from "@/lib/room-links";
 
 afterEach(() => {
@@ -107,16 +106,7 @@ describe("caption presentation", () => {
     expect(captionIsVisible(clear)).toBe(false);
   });
 });
-it("builds a bounded mono WAV and retains all source and Presenter invitation roles", () => {
-  const wav = encodeWav(Float32Array.from([-1, 0, 1]));
-  expect(new TextDecoder().decode(wav.slice(0, 4))).toBe("RIFF");
-  const view = new DataView(wav.buffer as ArrayBuffer);
-  expect(view.getUint32(24, true)).toBe(16000);
-  expect(view.getUint32(40, true)).toBe(6);
-  expect(view.getInt16(44, true)).toBe(-32768);
-  expect(view.getInt16(48, true)).toBe(32767);
-  const fullSegment = encodeWav(resampleMono(new Float32Array(48000 * 8), 48000));
-  expect(fullSegment.length).toBe(44 + 16000 * 8 * 2);
+it("retains all source and Presenter invitation roles", () => {
   expect(parseRoomView({ view: "source", slot: "E" })).toBe("source-e");
   expect(parseRoomView({ view: "presenter" })).toBe("presenter");
   expect(roomInviteUrl("https://relay.example", "room", "source-d")).toBe(

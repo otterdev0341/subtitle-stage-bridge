@@ -22,6 +22,8 @@ vi.mock("@/lib/botnoi-live.functions", () => ({
   botnoiStopSession: api.stop,
 }));
 import { BotnoiLivePanel } from "@/components/stage/BotnoiLivePanel";
+import { CaptionControls } from "@/components/stage/CaptionControls";
+import { defaultCaption } from "@/lib/captions";
 
 afterEach(() => {
   cleanup();
@@ -111,70 +113,129 @@ describe("Botnoi Live panel", () => {
     qrPngUrl: "https://api.qrserver.com/qr.png",
     code: { code: "EVENT2026", remainingMinutes: 100, active: true },
   };
+  const fakeWindow = () => ({
+    closed: false,
+    opener: {},
+    location: { href: "" },
+    close: vi.fn(),
+    document: { body: {} },
+  });
   const fill = () => {
     fireEvent.change(screen.getByLabelText("API key"), { target: { value: "key-12345678" } });
     fireEvent.change(screen.getByLabelText("Code ใช้งาน (time code)"), {
       target: { value: "EVENT2026" },
     });
   };
+  const renderPanel = () =>
+    render(<BotnoiLivePanel roomId={crypto.randomUUID()} defaultSource="th" defaultTarget="en" />);
 
-  it("opens the speaker page, shows the QR and reconnects when languages change", async () => {
-    const tab = { closed: false, opener: {}, location: { href: "" }, close: vi.fn(), document: {} };
-    const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+  it("starts listening in a speaker window, shows the QR and reconnects on new settings", async () => {
+    const speaker = fakeWindow();
+    const open = vi.spyOn(window, "open").mockReturnValue(speaker as unknown as Window);
     api.create.mockResolvedValue(session);
     api.stop.mockResolvedValue({ ok: true });
-    render(<BotnoiLivePanel roomId={crypto.randomUUID()} defaultSource="th" defaultTarget="en" />);
-    const connect = screen.getByRole("button", { name: /เชื่อมต่อ Botnoi Live/ });
-    expect(connect).toBeDisabled();
+    renderPanel();
+    const start = screen.getByRole("button", { name: "เริ่มรับเสียง" });
+    expect(start).toBeDisabled();
     fill();
-    await act(async () => fireEvent.click(connect));
-    expect(open).toHaveBeenCalledTimes(1);
-    expect(tab.location.href).toBe(session.speakerUrl);
+    fireEvent.change(screen.getByLabelText(/^Glossary/), { target: { value: "Botnoi = บอทน้อย" } });
+    await act(async () => fireEvent.click(start));
+    expect(open.mock.calls[0]![1]).toMatch(/^botnoi-speaker-/);
+    expect(open.mock.calls[0]![2]).toContain("popup");
+    expect(speaker.location.href).toBe(session.speakerUrl);
     expect(api.create.mock.calls[0]![0].data).toMatchObject({
       apiKey: "key-12345678",
       code: "EVENT2026",
       sourceLanguage: "th",
       targetLanguages: ["en"],
+      glossary: "Botnoi = บอทน้อย",
     });
     expect(screen.getByAltText(/QR สำหรับผู้ฟัง/)).toHaveAttribute("src", session.qrPngUrl);
+    expect(screen.getByRole("button", { name: "หยุดรับเสียง" })).toBeEnabled();
 
     fireEvent.click(screen.getByLabelText(/ญี่ปุ่น|ja/));
-    expect(screen.getByText(/เปลี่ยนภาษาแล้ว/)).toBeInTheDocument();
+    expect(screen.getByText(/เปลี่ยนภาษาหรือ Glossary แล้ว/)).toBeInTheDocument();
     api.create.mockResolvedValue({
       ...session,
       id: crypto.randomUUID(),
       targetLanguages: ["en", "ja"],
     });
     await act(async () =>
-      fireEvent.click(screen.getByRole("button", { name: "เชื่อมต่อใหม่ด้วยภาษาใหม่" })),
+      fireEvent.click(screen.getByRole("button", { name: "เชื่อมต่อใหม่ด้วยค่าใหม่" })),
     );
     expect(api.stop.mock.calls[0]![0].data.id).toBe(session.id);
     expect(api.create.mock.calls[1]![0].data.targetLanguages).toEqual(["en", "ja"]);
-    await waitFor(() => expect(screen.queryByText(/เปลี่ยนภาษาแล้ว/)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/เปลี่ยนภาษาหรือ Glossary แล้ว/)).not.toBeInTheDocument(),
+    );
     open.mockRestore();
   });
 
+  it("warns when the speaker window is closed and reopens it with a new link", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const speaker = fakeWindow();
+    const open = vi.spyOn(window, "open").mockReturnValue(speaker as unknown as Window);
+    api.create.mockResolvedValue(session);
+    api.get.mockResolvedValue({ ...session, status: "opened" });
+    api.renew.mockResolvedValue({ speakerUrl: "https://botnoi.live/partner/live/new" });
+    renderPanel();
+    fill();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "เริ่มรับเสียง" })));
+    speaker.closed = true;
+    await act(async () => vi.advanceTimersByTime(2100));
+    expect(screen.getByText(/หน้าต่างผู้พูดถูกปิด/)).toBeInTheDocument();
+    const again = fakeWindow();
+    open.mockReturnValue(again as unknown as Window);
+    await act(async () =>
+      fireEvent.click(screen.getByRole("button", { name: "เปิดหน้าผู้พูดใหม่" })),
+    );
+    expect(again.location.href).toBe("https://botnoi.live/partner/live/new");
+    expect(screen.queryByText(/หน้าต่างผู้พูดถูกปิด/)).not.toBeInTheDocument();
+    open.mockRestore();
+    vi.useRealTimers();
+  });
+
   it("keeps credentials out of localStorage unless the operator opts in", () => {
-    render(<BotnoiLivePanel roomId={crypto.randomUUID()} defaultSource="th" defaultTarget="en" />);
+    renderPanel();
     fill();
     expect(localStorage.getItem("relay-botnoi-credentials")).toBeNull();
     fireEvent.click(screen.getByLabelText("จำ key และ code ในเครื่องนี้"));
     expect(JSON.parse(localStorage.getItem("relay-botnoi-credentials")!).code).toBe("EVENT2026");
   });
 
-  it("shows Botnoi errors without opening a stray tab", async () => {
-    const tab = { closed: false, location: { href: "" }, close: vi.fn(), document: {} };
-    const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+  it("shows Botnoi errors without leaving a stray window", async () => {
+    const speaker = fakeWindow();
+    const open = vi.spyOn(window, "open").mockReturnValue(speaker as unknown as Window);
     api.create.mockRejectedValue(
       new Error("Code ใช้งานนี้ถูกปิดหรือเวลาหมดแล้ว กรุณาใช้ code ใหม่"),
     );
-    render(<BotnoiLivePanel roomId={crypto.randomUUID()} defaultSource="th" defaultTarget="en" />);
+    renderPanel();
     fill();
-    await act(async () =>
-      fireEvent.click(screen.getByRole("button", { name: /เชื่อมต่อ Botnoi Live/ })),
-    );
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "เริ่มรับเสียง" })));
     expect(screen.getByRole("alert")).toHaveTextContent("code ใหม่");
-    expect(tab.close).toHaveBeenCalled();
+    expect(speaker.close).toHaveBeenCalled();
     open.mockRestore();
+  });
+});
+
+describe("manual Program captions", () => {
+  it("publishes, holds, hides and clears without any AI call", () => {
+    const publish = vi.fn();
+    const change = vi.fn();
+    const track = defaultCaption();
+    render(<CaptionControls track={track} onChange={change} onPublish={publish} />);
+    const send = screen.getByRole("button", { name: "ส่งซับขึ้น LIVE" });
+    expect(send).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("ข้อความซับที่ต้องการส่ง"), {
+      target: { value: "Dr. Somchai" },
+    });
+    fireEvent.click(send);
+    expect(publish).toHaveBeenCalledWith("", "Dr. Somchai");
+    fireEvent.click(screen.getByRole("button", { name: "ค้างซับปัจจุบัน" }));
+    expect(change.mock.calls[0]![0].held).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "ซ่อนซับ" }));
+    expect(change.mock.calls[1]![0].visible).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "ล้างซับบนจอ" }));
+    expect(publish).toHaveBeenLastCalledWith("", "");
   });
 });

@@ -632,3 +632,21 @@
   border-radius: 8px;
   padding: 6px;
 }
+.control-botnoi-step {
+  margin: 14px 0;
+  padding-top: 12px;
+  border-top: 1px solid #e3ebe4;
+}
+.control-botnoi-step h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+.control-botnoi-step > summary {
+  padding: 4px 0 8px;
+}
+.control-botnoi-step textarea {
+  min-height: 110px;
+}
+.control-caption-manual > summary {
+  padding: 0;
+}

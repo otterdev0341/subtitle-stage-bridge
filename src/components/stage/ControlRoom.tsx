@@ -43,7 +43,7 @@ import { StageCanvas } from "./StageCanvas";
 import { CroppedVideo } from "./CroppedVideo";
 import { LayerGeometryControls } from "./LayerGeometryControls";
 import { TemplatePreview } from "./TemplatePreview";
-import { TranslationConsole } from "./TranslationConsole";
+import { CaptionControls } from "./CaptionControls";
 import { BotnoiLivePanel } from "./BotnoiLivePanel";
 import { ShowToolbar } from "./ShowToolbar";
 
@@ -209,7 +209,22 @@ export function ControlRoom({ roomId }: { roomId: string }) {
             คัดลอก Presenter Link
           </Button>
           <Button asChild variant="outline">
-            <a href={roomPath(roomId, "presenter")} target="_blank" rel="noreferrer">
+            <a
+              href={roomPath(roomId, "presenter")}
+              target={`presenter-${roomId}`}
+              rel="noreferrer"
+              title="เปิดเป็นหน้าต่างแยก ลากไปจอโปรเจกเตอร์แล้วกด F"
+              onClick={(event) => {
+                // A separate window keeps this Control Room visible (and unthrottled)
+                // while the Presenter is full screen on the projector.
+                const win = window.open(
+                  roomPath(roomId, "presenter"),
+                  `presenter-${roomId}`,
+                  "popup,width=1280,height=720",
+                );
+                if (win) event.preventDefault();
+              }}
+            >
               เปิด Presenter
             </a>
           </Button>
@@ -839,14 +854,18 @@ export function ControlRoom({ roomId }: { roomId: string }) {
                     defaultTarget={program.captions?.targetLanguage ?? "en"}
                   />
                 </section>
-                <section className="control-card">
-                  <TranslationConsole
-                    roomId={roomId}
+                <details className="control-card control-caption-manual">
+                  <summary>ซับบนจอ Program · พิมพ์เอง (ไม่บังคับ)</summary>
+                  <p className="control-muted">
+                    ข้อความทับบนภาพ Program สำหรับชื่อผู้พูด หัวข้อ หรือประกาศ · ใช้ปุ่ม S
+                    ซ่อน/แสดงได้
+                  </p>
+                  <CaptionControls
                     track={program.captions ?? defaultCaption()}
                     onChange={setCaptions}
                     onPublish={publish}
                   />
-                </section>
+                </details>
               </div>
               <aside className="control-card control-translation-monitor">
                 <h2>PROGRAM · ภาพออกจริง</h2>

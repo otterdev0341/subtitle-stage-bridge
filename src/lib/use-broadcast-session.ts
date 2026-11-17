@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
-import { supabase } from "@/integrations/supabase/client";
+import { roomRealtime, workerInterval } from "./realtime-room";
 import { normalizeLayout, type StageLayout } from "@/lib/stage-layout";
 import { isSourceId, type SourceId } from "./sources";
 import { isShowCommand, type ShowCommand } from "./show-controls";
+
+const PEER_DISCONNECT_GRACE_MS = 10_000;
 
 export type BroadcastRole = "director" | SourceId | "translation-display";
 type ParticipantRole = Exclude<BroadcastRole, "director">;
@@ -58,7 +60,7 @@ export function useBroadcastSession(
   const roleRef = useRef<BroadcastRole>("director");
   const streamRef = useRef<MediaStream | null>(null);
   const activeRef = useRef(false);
-  const handshakeTimerRef = useRef<number | null>(null);
+  const handshakeTimerRef = useRef<(() => void) | null>(null);
   const remoteStationsRef = useRef(new Map<string, ParticipantRole>());
   const stageScreensRef = useRef(new Set<string>());
   const layoutRef = useRef<BroadcastLayout | null>(null);
@@ -79,10 +81,8 @@ export function useBroadcastSession(
     setCommandPending(false);
     if (!activeRef.current) return;
     activeRef.current = false;
-    if (handshakeTimerRef.current !== null) {
-      window.clearInterval(handshakeTimerRef.current);
-      handshakeTimerRef.current = null;
-    }
+    handshakeTimerRef.current?.();
+    handshakeTimerRef.current = null;
     broadcast({ action: "left", from: selfIdRef.current, role: roleRef.current });
     for (const connection of connectionsRef.current.values()) connection.close();
     connectionsRef.current.clear();
@@ -93,7 +93,7 @@ export function useBroadcastSession(
     streamRef.current = null;
     const channel = channelRef.current;
     channelRef.current = null;
-    if (channel) void supabase.removeChannel(channel);
+    if (channel) void roomRealtime().removeChannel(channel);
     setParticipants([]);
     setConnected(false);
   }, [broadcast]);
@@ -159,7 +159,7 @@ export function useBroadcastSession(
       streamRef.current = stream ?? null;
       activeRef.current = true;
 
-      const channel = supabase.channel(`broadcast-room-${roomId}`, {
+      const channel = roomRealtime().channel(`broadcast-room-${roomId}`, {
         config: { broadcast: { self: false, ack: true } },
       });
       channelRef.current = channel;
@@ -202,7 +202,28 @@ export function useBroadcastSession(
             return [...others, { id: remoteId, role: remoteRole, stream: remoteStream }];
           });
         };
+        let disconnectTimer: ReturnType<typeof setTimeout> | undefined;
         connection.onconnectionstatechange = () => {
+          clearTimeout(disconnectTimer);
+          // "disconnected" often heals by itself; if it does not, drop the peer so the
+          // next hello/ready handshake builds a fresh connection instead of a frozen one.
+          if (connection.connectionState === "disconnected") {
+            disconnectTimer = setTimeout(() => {
+              if (connection.connectionState !== "disconnected") return;
+              connection.close();
+              if (connectionsRef.current.get(remoteId) === connection) {
+                connectionsRef.current.delete(remoteId);
+                setParticipants((current) =>
+                  current.map((participant) => {
+                    if (participant.id !== remoteId) return participant;
+                    const { stream: _stream, ...rest } = participant;
+                    return rest;
+                  }),
+                );
+              }
+            }, PEER_DISCONNECT_GRACE_MS);
+            return;
+          }
           if (connection.connectionState === "failed" || connection.connectionState === "closed") {
             connection.close();
             connectionsRef.current.delete(remoteId);
@@ -491,27 +512,24 @@ export function useBroadcastSession(
         .subscribe((status) => {
           if (status === "SUBSCRIBED") {
             setConnected(true);
+            setError("");
             const action = role === "director" ? "hello" : "ready";
             sendSignal({ action, from: selfIdRef.current, role });
-            if (handshakeTimerRef.current !== null) window.clearInterval(handshakeTimerRef.current);
-            handshakeTimerRef.current = window.setInterval(() => {
+            handshakeTimerRef.current?.();
+            // Worker-timed so a hidden Control Room keeps announcing itself on time.
+            handshakeTimerRef.current = workerInterval(() => {
               if (!activeRef.current) {
-                if (handshakeTimerRef.current !== null) {
-                  window.clearInterval(handshakeTimerRef.current);
-                  handshakeTimerRef.current = null;
-                }
-              } else {
-                sendSignal({ action, from: selfIdRef.current, role });
-              }
-              if (!activeRef.current && handshakeTimerRef.current !== null) {
-                window.clearInterval(handshakeTimerRef.current);
+                handshakeTimerRef.current?.();
                 handshakeTimerRef.current = null;
+                return;
               }
+              sendSignal({ action, from: selfIdRef.current, role });
             }, 5000);
           }
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
             setConnected(false);
-            setError("เชื่อมต่อห้องไม่ได้ กรุณาตรวจสัญญาณอินเทอร์เน็ตแล้วลองใหม่");
+            // Realtime rejoins on its own; SUBSCRIBED clears this message again.
+            if (activeRef.current) setError("การเชื่อมต่อห้องหลุด กำลังเชื่อมต่อใหม่อัตโนมัติ…");
           }
         });
 
