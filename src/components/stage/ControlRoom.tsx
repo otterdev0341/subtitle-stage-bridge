@@ -44,6 +44,7 @@ import { CroppedVideo } from "./CroppedVideo";
 import { LayerGeometryControls } from "./LayerGeometryControls";
 import { TemplatePreview } from "./TemplatePreview";
 import { TranslationConsole } from "./TranslationConsole";
+import { BotnoiLivePanel } from "./BotnoiLivePanel";
 import { ShowToolbar } from "./ShowToolbar";
 
 export function ControlRoom({ roomId }: { roomId: string }) {
@@ -199,7 +200,9 @@ export function ControlRoom({ roomId }: { roomId: string }) {
         </Link>
         <div className="control-room-id">
           ROOM {roomId.slice(0, 8).toUpperCase()}{" "}
-          <span className="control-badge">{session.connected ? "เชื่อมต่อแล้ว" : "กำลังเชื่อมต่อ"}</span>
+          <span className="control-badge">
+            {session.connected ? "เชื่อมต่อแล้ว" : "กำลังเชื่อมต่อ"}
+          </span>
         </div>
         <div className="control-actions">
           <Button variant="outline" onClick={() => void copy("presenter")}>
@@ -327,7 +330,9 @@ export function ControlRoom({ roomId }: { roomId: string }) {
           <TabsContent value="sources">
             <section className="control-card">
               <h2>Source Preview</h2>
-              <p className="control-muted">เลือกดูและแก้ไขได้ทีละแหล่ง · การเลือกแท็บไม่เปลี่ยนภาพบน LIVE</p>
+              <p className="control-muted">
+                เลือกดูและแก้ไขได้ทีละแหล่ง · การเลือกแท็บไม่เปลี่ยนภาพบน LIVE
+              </p>
               <Tabs value={active} onValueChange={(id) => select(id as SourceId)}>
                 <TabsList className="control-source-tabs" aria-label="เลือกแหล่งภาพ A ถึง E">
                   {SOURCES.map((s) => (
@@ -350,7 +355,8 @@ export function ControlRoom({ roomId }: { roomId: string }) {
                       <div>
                         <h3>{sourceTitle(s.id, draft.layers[s.id].name)}</h3>
                         <p>
-                          กำลังเลือก: {s.letter} · {streams[s.id] ? "เชื่อมต่อแล้ว" : "รอเครื่องส่ง"}
+                          กำลังเลือก: {s.letter} ·{" "}
+                          {streams[s.id] ? "เชื่อมต่อแล้ว" : "รอเครื่องส่ง"}
                         </p>
                         <p>
                           Program: {program.layers[s.id].visible ? "เปิดแสดง" : "ซ่อนอยู่"}
@@ -825,14 +831,23 @@ export function ControlRoom({ roomId }: { roomId: string }) {
           </TabsContent>
           <TabsContent value="translation" forceMount className="control-translation-panel">
             <div className="control-translation-layout">
-              <section className="control-card">
-                <TranslationConsole
-                  roomId={roomId}
-                  track={program.captions ?? defaultCaption()}
-                  onChange={setCaptions}
-                  onPublish={publish}
-                />
-              </section>
+              <div className="control-translation-stack">
+                <section className="control-card">
+                  <BotnoiLivePanel
+                    roomId={roomId}
+                    defaultSource={program.captions?.sourceLanguage ?? "th"}
+                    defaultTarget={program.captions?.targetLanguage ?? "en"}
+                  />
+                </section>
+                <section className="control-card">
+                  <TranslationConsole
+                    roomId={roomId}
+                    track={program.captions ?? defaultCaption()}
+                    onChange={setCaptions}
+                    onPublish={publish}
+                  />
+                </section>
+              </div>
               <aside className="control-card control-translation-monitor">
                 <h2>PROGRAM · ภาพออกจริง</h2>
                 <StageCanvas layout={program} streams={streams} caption="" editable={false} />
