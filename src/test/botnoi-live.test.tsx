@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   BOTNOI_LIVE_BASE,
@@ -21,7 +21,7 @@ vi.mock("@/lib/botnoi-live.functions", () => ({
   botnoiRenewSpeakerLink: api.renew,
   botnoiStopSession: api.stop,
 }));
-import { BotnoiLivePanel } from "@/components/stage/BotnoiLivePanel";
+import { TranslationDock } from "@/components/stage/TranslationDock";
 import { CaptionControls } from "@/components/stage/CaptionControls";
 import { defaultCaption } from "@/lib/captions";
 
@@ -101,7 +101,7 @@ describe("Botnoi Live partner client", () => {
   });
 });
 
-describe("Botnoi Live panel", () => {
+describe("translation dock", () => {
   const session = {
     id: sessionPayload.id,
     status: "created",
@@ -113,109 +113,133 @@ describe("Botnoi Live panel", () => {
     qrPngUrl: "https://api.qrserver.com/qr.png",
     code: { code: "EVENT2026", remainingMinutes: 100, active: true },
   };
-  const fakeWindow = () => ({
-    closed: false,
-    opener: {},
-    location: { href: "" },
-    close: vi.fn(),
-    document: { body: {} },
-  });
-  const fill = () => {
-    fireEvent.change(screen.getByLabelText("API key"), { target: { value: "key-12345678" } });
-    fireEvent.change(screen.getByLabelText("Code ใช้งาน (time code)"), {
+  const renderDock = (connected = true) =>
+    render(<TranslationDock roomId={crypto.randomUUID()} roomConnected={connected} />);
+  const setUp = async () => {
+    fireEvent.click(screen.getByRole("button", { name: "เริ่มถ่ายทอดเสียง" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("API key"), {
+      target: { value: "key-12345678" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Code ใช้งาน"), {
       target: { value: "EVENT2026" },
     });
+    fireEvent.click(within(dialog).getByRole("button", { name: "บันทึก" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   };
-  const renderPanel = () =>
-    render(<BotnoiLivePanel roomId={crypto.randomUUID()} defaultSource="th" defaultTarget="en" />);
 
-  it("starts listening in a speaker window, shows the QR and reconnects on new settings", async () => {
-    const speaker = fakeWindow();
-    const open = vi.spyOn(window, "open").mockReturnValue(speaker as unknown as Window);
+  it("asks for setup once, then streams the room creator's mic in an embedded page", async () => {
+    const open = vi.spyOn(window, "open");
     api.create.mockResolvedValue(session);
-    api.stop.mockResolvedValue({ ok: true });
-    renderPanel();
-    const start = screen.getByRole("button", { name: "เริ่มรับเสียง" });
-    expect(start).toBeDisabled();
-    fill();
-    fireEvent.change(screen.getByLabelText(/^Glossary/), { target: { value: "Botnoi = บอทน้อย" } });
-    await act(async () => fireEvent.click(start));
-    expect(open.mock.calls[0]![1]).toMatch(/^botnoi-speaker-/);
-    expect(open.mock.calls[0]![2]).toContain("popup");
-    expect(speaker.location.href).toBe(session.speakerUrl);
+    renderDock();
+    await setUp();
+    expect(api.create).not.toHaveBeenCalled();
+    await act(async () =>
+      fireEvent.click(screen.getByRole("button", { name: "เริ่มถ่ายทอดเสียง" })),
+    );
     expect(api.create.mock.calls[0]![0].data).toMatchObject({
       apiKey: "key-12345678",
       code: "EVENT2026",
       sourceLanguage: "th",
       targetLanguages: ["en"],
-      glossary: "Botnoi = บอทน้อย",
     });
+    const frame = screen.getByTitle(/หน้าไมค์ผู้พูด/) as HTMLIFrameElement;
+    expect(frame.src).toBe(session.speakerUrl);
+    expect(frame.getAttribute("allow")).toContain("microphone");
+    expect(open).not.toHaveBeenCalled();
     expect(screen.getByAltText(/QR สำหรับผู้ฟัง/)).toHaveAttribute("src", session.qrPngUrl);
-    expect(screen.getByRole("button", { name: "หยุดรับเสียง" })).toBeEnabled();
+    expect(JSON.parse(localStorage.getItem("relay-botnoi-credentials")!).code).toBe("EVENT2026");
+    // Collapsing keeps the stream running.
+    fireEvent.click(screen.getByRole("button", { name: "ย่อ" }));
+    expect(screen.getByTitle(/หน้าไมค์ผู้พูด/)).toBeInTheDocument();
+    open.mockRestore();
+  });
 
-    fireEvent.click(screen.getByLabelText(/ญี่ปุ่น|ja/));
-    expect(screen.getByText(/เปลี่ยนภาษาหรือ Glossary แล้ว/)).toBeInTheDocument();
+  it("switches language in place without leaving the Control Room", async () => {
+    api.create.mockResolvedValue(session);
+    api.stop.mockResolvedValue({ ok: true });
+    renderDock();
+    await setUp();
+    await act(async () =>
+      fireEvent.click(screen.getByRole("button", { name: "เริ่มถ่ายทอดเสียง" })),
+    );
     api.create.mockResolvedValue({
       ...session,
       id: crypto.randomUUID(),
-      targetLanguages: ["en", "ja"],
+      targetLanguages: ["ja"],
+      speakerUrl: "https://botnoi.live/partner/live/next",
     });
-    await act(async () =>
-      fireEvent.click(screen.getByRole("button", { name: "เชื่อมต่อใหม่ด้วยค่าใหม่" })),
-    );
+    fireEvent.change(screen.getByLabelText("ภาษาแปล"), { target: { value: "ja" } });
+    await waitFor(() => expect(api.create).toHaveBeenCalledTimes(2), { timeout: 3000 });
     expect(api.stop.mock.calls[0]![0].data.id).toBe(session.id);
-    expect(api.create.mock.calls[1]![0].data.targetLanguages).toEqual(["en", "ja"]);
+    expect(api.create.mock.calls[1]![0].data.targetLanguages).toEqual(["ja"]);
     await waitFor(() =>
-      expect(screen.queryByText(/เปลี่ยนภาษาหรือ Glossary แล้ว/)).not.toBeInTheDocument(),
+      expect((screen.getByTitle(/หน้าไมค์ผู้พูด/) as HTMLIFrameElement).src).toBe(
+        "https://botnoi.live/partner/live/next",
+      ),
     );
-    open.mockRestore();
+    expect(screen.getByText(/สลับภาษาแล้ว/)).toBeInTheDocument();
   });
 
-  it("warns when the speaker window is closed and reopens it with a new link", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const speaker = fakeWindow();
-    const open = vi.spyOn(window, "open").mockReturnValue(speaker as unknown as Window);
+  it("does not retry a failed language switch in a loop", async () => {
     api.create.mockResolvedValue(session);
-    api.get.mockResolvedValue({ ...session, status: "opened" });
-    api.renew.mockResolvedValue({ speakerUrl: "https://botnoi.live/partner/live/new" });
-    renderPanel();
-    fill();
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "เริ่มรับเสียง" })));
-    speaker.closed = true;
-    await act(async () => vi.advanceTimersByTime(2100));
-    expect(screen.getByText(/หน้าต่างผู้พูดถูกปิด/)).toBeInTheDocument();
-    const again = fakeWindow();
-    open.mockReturnValue(again as unknown as Window);
+    api.stop.mockResolvedValue({ ok: true });
+    renderDock();
+    await setUp();
     await act(async () =>
-      fireEvent.click(screen.getByRole("button", { name: "เปิดหน้าผู้พูดใหม่" })),
+      fireEvent.click(screen.getByRole("button", { name: "เริ่มถ่ายทอดเสียง" })),
     );
-    expect(again.location.href).toBe("https://botnoi.live/partner/live/new");
-    expect(screen.queryByText(/หน้าต่างผู้พูดถูกปิด/)).not.toBeInTheDocument();
-    open.mockRestore();
-    vi.useRealTimers();
-  });
-
-  it("keeps credentials out of localStorage unless the operator opts in", () => {
-    renderPanel();
-    fill();
-    expect(localStorage.getItem("relay-botnoi-credentials")).toBeNull();
-    fireEvent.click(screen.getByLabelText("จำ key และ code ในเครื่องนี้"));
-    expect(JSON.parse(localStorage.getItem("relay-botnoi-credentials")!).code).toBe("EVENT2026");
-  });
-
-  it("shows Botnoi errors without leaving a stray window", async () => {
-    const speaker = fakeWindow();
-    const open = vi.spyOn(window, "open").mockReturnValue(speaker as unknown as Window);
     api.create.mockRejectedValue(
       new Error("Code ใช้งานนี้ถูกปิดหรือเวลาหมดแล้ว กรุณาใช้ code ใหม่"),
     );
-    renderPanel();
-    fill();
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "เริ่มรับเสียง" })));
-    expect(screen.getByRole("alert")).toHaveTextContent("code ใหม่");
-    expect(speaker.close).toHaveBeenCalled();
-    open.mockRestore();
+    fireEvent.change(screen.getByLabelText("ภาษาแปล"), { target: { value: "ja" } });
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("code ใหม่"), {
+      timeout: 3000,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(api.create).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "เริ่มถ่ายทอดเสียง" })).toBeEnabled();
   });
+
+  it("tests room, Botnoi key, code and the microphone", async () => {
+    api.languages.mockResolvedValue({ languages: ["th", "en", "ja"] });
+    const track = { stop: vi.fn() };
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [track] }) },
+    });
+    vi.stubGlobal(
+      "AudioContext",
+      class {
+        createAnalyser() {
+          return {
+            fftSize: 0,
+            getFloatTimeDomainData: (data: Float32Array) => data.fill(0.3),
+          };
+        }
+        createMediaStreamSource() {
+          return { connect: vi.fn() };
+        }
+        close = vi.fn().mockResolvedValue(undefined);
+      },
+    );
+    localStorage.setItem(
+      "relay-botnoi-credentials",
+      JSON.stringify({ apiKey: "key-12345678", code: "EVENT2026" }),
+    );
+    renderDock(false);
+    await act(async () =>
+      fireEvent.click(screen.getByRole("button", { name: "ทดสอบการเชื่อมต่อ" })),
+    );
+    await waitFor(() => expect(screen.getByText("ได้ยินเสียงชัดเจน")).toBeInTheDocument(), {
+      timeout: 5000,
+    });
+    expect(screen.getByText(/รองรับ 3 ภาษา/)).toBeInTheDocument();
+    expect(screen.getByText(/ยังไม่เชื่อมต่อห้อง/)).toBeInTheDocument();
+    expect(screen.getByText(/ตรวจ code ตอนเริ่มถ่ายทอด/)).toBeInTheDocument();
+    expect(track.stop).toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  }, 10_000);
 });
 
 describe("manual Program captions", () => {

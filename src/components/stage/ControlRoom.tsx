@@ -44,7 +44,7 @@ import { CroppedVideo } from "./CroppedVideo";
 import { LayerGeometryControls } from "./LayerGeometryControls";
 import { TemplatePreview } from "./TemplatePreview";
 import { CaptionControls } from "./CaptionControls";
-import { BotnoiLivePanel } from "./BotnoiLivePanel";
+import { TranslationDock } from "./TranslationDock";
 import { ShowToolbar } from "./ShowToolbar";
 
 export function ControlRoom({ roomId }: { roomId: string }) {
@@ -255,6 +255,7 @@ export function ControlRoom({ roomId }: { roomId: string }) {
             TAKE · ส่ง Preview ขึ้น LIVE <kbd>Space</kbd>
           </Button>
         </div>
+        <TranslationDock roomId={roomId} roomConnected={session.connected} />
         {(notice || session.error) && (
           <p className={session.error ? "control-error" : "control-notice"} role="status">
             {session.error || notice}
@@ -265,7 +266,6 @@ export function ControlRoom({ roomId }: { roomId: string }) {
             <TabsTrigger value="live">Live</TabsTrigger>
             <TabsTrigger value="sources">Sources · แหล่งภาพ</TabsTrigger>
             <TabsTrigger value="scene">Scene Editor</TabsTrigger>
-            <TabsTrigger value="translation">Translation · ซับ</TabsTrigger>
           </TabsList>
           <TabsContent value="live">
             <div className="control-monitor-grid">
@@ -340,6 +340,18 @@ export function ControlRoom({ roomId }: { roomId: string }) {
                   </Button>
                 ))}
               </div>
+            </details>
+            <details className="control-card control-caption-manual">
+              <summary>ซับข้อความบนจอ Program · พิมพ์เอง (ไม่บังคับ)</summary>
+              <p className="control-muted">
+                ข้อความทับภาพ เช่น ชื่อผู้พูด หัวข้อ หรือประกาศ · ใช้ปุ่ม S ซ่อน/แสดงได้ ·
+                คำแปลเสียงสดผู้ฟังดูผ่าน QR ของ Botnoi
+              </p>
+              <CaptionControls
+                track={program.captions ?? defaultCaption()}
+                onChange={setCaptions}
+                onPublish={publish}
+              />
             </details>
           </TabsContent>
           <TabsContent value="sources">
@@ -843,44 +855,6 @@ export function ControlRoom({ roomId }: { roomId: string }) {
                 ))}
               </div>
             </section>
-          </TabsContent>
-          <TabsContent value="translation" forceMount className="control-translation-panel">
-            <div className="control-translation-layout">
-              <div className="control-translation-stack">
-                <section className="control-card">
-                  <BotnoiLivePanel
-                    roomId={roomId}
-                    defaultSource={program.captions?.sourceLanguage ?? "th"}
-                    defaultTarget={program.captions?.targetLanguage ?? "en"}
-                  />
-                </section>
-                <details className="control-card control-caption-manual">
-                  <summary>ซับบนจอ Program · พิมพ์เอง (ไม่บังคับ)</summary>
-                  <p className="control-muted">
-                    ข้อความทับบนภาพ Program สำหรับชื่อผู้พูด หัวข้อ หรือประกาศ · ใช้ปุ่ม S
-                    ซ่อน/แสดงได้
-                  </p>
-                  <CaptionControls
-                    track={program.captions ?? defaultCaption()}
-                    onChange={setCaptions}
-                    onPublish={publish}
-                  />
-                </details>
-              </div>
-              <aside className="control-card control-translation-monitor">
-                <h2>PROGRAM · ภาพออกจริง</h2>
-                <StageCanvas layout={program} streams={streams} caption="" editable={false} />
-                <p className="control-muted">ซับเป็นเลเยอร์ข้อความแยกจากภาพ B</p>
-                <p>
-                  สถานะซับ: {program.captions?.visible ? "เปิดแสดง" : "ซ่อน"} ·{" "}
-                  {program.captions?.held ? "ค้างข้อความ" : "รับข้อความต่อ"}
-                </p>
-                <p className="control-muted">ข้อความล่าสุดที่ส่ง:</p>
-                <p aria-live="polite" lang={program.captions?.targetLanguage}>
-                  {program.captions?.text || "ยังไม่มีข้อความ"}
-                </p>
-              </aside>
-            </div>
           </TabsContent>
         </Tabs>
         <footer className="control-show-dock">

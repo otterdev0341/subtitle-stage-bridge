@@ -650,3 +650,227 @@
 .control-caption-manual > summary {
   padding: 0;
 }
+
+/* Translation dock: Botnoi Live speech translation, visible on every tab. */
+.control-tdock {
+  background: #fff;
+  border: 1px solid #d5dfd5;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+}
+.control-tdock-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+.control-tdock-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.control-tdock-title > strong {
+  font-size: 16px;
+}
+.control-tdock-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #d5dfd5;
+  background: #f3f6f3;
+  color: #44514a;
+}
+.control-tdock-status::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9aa79f;
+}
+.control-tdock-status.is-pending {
+  background: #fff7e0;
+  border-color: #ecd28a;
+  color: #7a5a00;
+}
+.control-tdock-status.is-pending::before {
+  background: #e0a800;
+}
+.control-tdock-status.is-live {
+  background: #fde8e6;
+  border-color: #f0b4ad;
+  color: #a5251a;
+}
+.control-tdock-status.is-live::before {
+  background: #d93025;
+  animation: control-tdock-pulse 1.4s ease-in-out infinite;
+}
+@keyframes control-tdock-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.control-tdock-langs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 320px;
+  flex-wrap: wrap;
+}
+.control-tdock-langs label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.control-tdock-langs select {
+  min-width: 130px;
+}
+.control-tdock-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.control-tdock-notice {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #075330;
+}
+.control-tdock > .control-error {
+  margin: 10px 0 0;
+}
+.control-tdock-checks {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #f6f9f6;
+}
+.control-tdock-checks ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.control-tdock-checks li {
+  display: grid;
+  grid-template-columns: 20px 190px 1fr;
+  gap: 8px;
+  align-items: baseline;
+}
+.control-tdock-checks li > span:first-child {
+  font-weight: 700;
+  text-align: center;
+}
+.control-tdock-checks li.is-ok > span:first-child {
+  color: #0b7a3e;
+}
+.control-tdock-checks li.is-fail > span:first-child {
+  color: #c5221f;
+}
+.control-tdock-checks li.is-warn > span:first-child {
+  color: #b07800;
+}
+.control-tdock-live {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  margin-top: 12px;
+}
+.control-tdock-mic {
+  border: 1px solid #d5dfd5;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.control-tdock-mic-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 4px 4px 12px;
+  font-size: 12px;
+  background: #f3f6f3;
+}
+.control-tdock-mic iframe {
+  display: block;
+  width: 100%;
+  height: 320px;
+  border: 0;
+  background: #fff;
+}
+/* Collapsed keeps the iframe mounted so the microphone keeps streaming. */
+.control-tdock-mic.is-collapsed iframe {
+  height: 0;
+}
+.control-tdock-listen {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.control-tdock-listen img {
+  width: 140px;
+  height: 140px;
+  border-radius: 8px;
+  border: 1px solid #d5dfd5;
+  background: #fff;
+  padding: 4px;
+  flex: none;
+}
+.control-tdock-listen p {
+  margin: 4px 0;
+  font-size: 12px;
+}
+.control-tdock-links {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.control-tdock-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+.control-tdock-dialog input:not([type="checkbox"]),
+.control-tdock-dialog textarea {
+  border: 1px solid #ccd9ce;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+.control-tdock-dialog textarea {
+  min-height: 90px;
+}
+.control-tdock-dialog label.control-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.control-tdock-dialog-row {
+  display: flex;
+  gap: 18px;
+}
+.control-tdock-dialog summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 6px 0;
+}
+@media (max-width: 1000px) {
+  .control-tdock-live {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .control-tdock-actions {
+    margin-left: 0;
+  }
+}
