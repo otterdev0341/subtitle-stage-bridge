@@ -129,6 +129,10 @@ export function TranslationConsole({
           stop();
           setError(message);
         },
+        () =>
+          setError(
+            "แปลช้ากว่าเสียงพูด · ข้ามเสียงช่วงเก่าบางส่วนเพื่อให้ซับตามทันปัจจุบัน (ยังรับเสียงต่อ)",
+          ),
       );
       if (capture.current === next)
         setDevices(

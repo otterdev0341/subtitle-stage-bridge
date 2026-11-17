@@ -49,6 +49,14 @@ export function resampleMono(samples: Float32Array, inputRate: number, outputRat
   return result;
 }
 
+const MAX_BACKLOG_SECONDS = 12;
+function concat(a: Float32Array, b: Float32Array) {
+  const out = new Float32Array(a.length + b.length);
+  out.set(a);
+  out.set(b, a.length);
+  return out;
+}
+
 export class CaptionAudioCapture {
   private stream: MediaStream | null = null;
   private context: AudioContext | null = null;
@@ -58,12 +66,16 @@ export class CaptionAudioCapture {
   private speech = false;
   private busy = false;
   private stopped = false;
+  /** At most one segment waits while the previous one is translating; older speech is dropped. */
+  private queued: Float32Array | null = null;
+  private rate = 16000;
   async start(
     kind: "microphone" | "tab",
     deviceId: string,
     onSegment: (audio: string) => Promise<void>,
     onLevel: (level: number) => void,
     onError: (message: string) => void,
+    onLag?: () => void,
   ) {
     try {
       const stream =
@@ -78,7 +90,9 @@ export class CaptionAudioCapture {
         return;
       }
       if (!stream.getAudioTracks().length)
-        throw new Error("ไม่มีเสียงจากแท็บที่เลือก กรุณาเลือกแท็บพร้อมเปิดแชร์เสียง หรือต่อเสียงผ่านไมโครโฟน/มิกเซอร์");
+        throw new Error(
+          "ไม่มีเสียงจากแท็บที่เลือก กรุณาเลือกแท็บพร้อมเปิดแชร์เสียง หรือต่อเสียงผ่านไมโครโฟน/มิกเซอร์",
+        );
       stream.getTracks().forEach((track) =>
         track.addEventListener(
           "ended",
@@ -132,24 +146,23 @@ export class CaptionAudioCapture {
           !(this.frames.length > rate * 2 && this.silence > rate * 0.6)
         )
           return;
-        const audio = audioBase64(encodeWav(resampleMono(Float32Array.from(this.frames), rate)));
+        const segment = Float32Array.from(this.frames);
         this.frames = [];
         this.speech = false;
         this.silence = 0;
+        this.rate = rate;
         if (this.busy) {
-          this.stop();
-          onError("การแปลตามเสียงไม่ทัน หยุดรับเสียงแล้วเพื่อไม่ส่งซับล่าช้า กรุณาลองใหม่");
+          // Translation is slower than speech: keep only the newest backlog (≤ 12 s) so
+          // captions stay current instead of stopping the capture.
+          const merged = this.queued ? concat(this.queued, segment) : segment;
+          const dropped = merged.length > rate * MAX_BACKLOG_SECONDS;
+          this.queued = dropped
+            ? merged.subarray(merged.length - rate * MAX_BACKLOG_SECONDS)
+            : merged;
+          if (dropped) onLag?.();
           return;
         }
-        this.busy = true;
-        void onSegment(audio)
-          .catch((error) => {
-            this.stop();
-            onError(error instanceof Error ? error.message : "แปลเสียงไม่สำเร็จ");
-          })
-          .finally(() => {
-            this.busy = false;
-          });
+        this.send(segment, onSegment, onError);
       };
       await context.resume();
     } catch (error) {
@@ -157,8 +170,30 @@ export class CaptionAudioCapture {
       throw error;
     }
   }
+  private send(
+    segment: Float32Array,
+    onSegment: (audio: string) => Promise<void>,
+    onError: (message: string) => void,
+  ) {
+    this.busy = true;
+    const audio = audioBase64(encodeWav(resampleMono(segment, this.rate)));
+    void onSegment(audio).then(
+      () => {
+        this.busy = false;
+        const next = this.queued;
+        this.queued = null;
+        if (next && !this.stopped) this.send(next, onSegment, onError);
+      },
+      (error) => {
+        this.busy = false;
+        this.stop();
+        onError(error instanceof Error ? error.message : "แปลเสียงไม่สำเร็จ");
+      },
+    );
+  }
   stop() {
     this.stopped = true;
+    this.queued = null;
     this.node?.disconnect();
     this.node = null;
     this.stream?.getTracks().forEach((track) => track.stop());
