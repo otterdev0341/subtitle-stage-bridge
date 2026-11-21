@@ -83,10 +83,16 @@ function AuthPage() {
   };
 
   const title = mode === "signin" ? "เข้าสู่ระบบ" : mode === "signup" ? "สร้างบัญชี" : "ลืมรหัสผ่าน";
+  const subtitle =
+    mode === "signin"
+      ? "จัดการห้องถ่ายทอด ลิงก์แชร์จอ และการแปลสดของคุณ"
+      : mode === "signup"
+        ? "สร้างบัญชีเพื่อเริ่มจัดเวทีถ่ายทอดสดของคุณ"
+        : "กรอกอีเมลเพื่อรับลิงก์ตั้งรหัสผ่านใหม่";
   return (
     <main className="relay-auth">
-      <div className="relay-auth-card">
-        <Link to="/" className="relay-brand">
+      <aside className="relay-auth-aside">
+        <Link to="/" className="relay-brand relay-brand-inverse">
           <span className="relay-brand-mark">
             <RadioTower size={18} />
           </span>
@@ -94,7 +100,32 @@ function AuthPage() {
             live<span className="relay-brand-light">{" relay"}</span>
           </span>
         </Link>
-        <h1>{title}</h1>
+        <div className="relay-auth-aside-body">
+          <p className="relay-hero-kicker">
+            <span className="relay-hero-kicker-dot" /> LIVE COMPOSITION
+          </p>
+          <h2>
+            ห้าจอ.
+            <br />
+            <em>เวทีเดียว.</em>
+          </h2>
+          <p>รวมภาพจากหลายเครื่อง จัดวางบนเวที ขึ้นซับแปลสด แล้วส่งขึ้นจอจริงได้ทันที</p>
+        </div>
+        <span className="relay-auth-aside-foot">ภาพส่งตรงระหว่างอุปกรณ์</span>
+      </aside>
+      <div className="relay-auth-card">
+        <Link to="/" className="relay-brand relay-auth-card-brand">
+          <span className="relay-brand-mark">
+            <RadioTower size={18} />
+          </span>
+          <span>
+            live<span className="relay-brand-light">{" relay"}</span>
+          </span>
+        </Link>
+        <div className="relay-auth-heading">
+          <h1>{title}</h1>
+          <p>{subtitle}</p>
+        </div>
         {sent ? (
           <p className="relay-auth-note">{sent}</p>
         ) : (

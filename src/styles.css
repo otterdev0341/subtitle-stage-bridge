@@ -1034,16 +1034,32 @@
 /* Accounts, rooms, translation */
 .relay-account { display: flex; align-items: center; gap: 6px; font-size: 13px; }
 .relay-account-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); }
-.relay-auth { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--background); color: var(--foreground); }
-.relay-auth-card { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 18px; padding: 32px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--card); }
-.relay-auth-card h1 { font-size: 26px; font-weight: 700; }
+/* ---- Auth: split layout, dark brand panel + form ---- */
+.relay-auth { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); background: var(--background); color: var(--foreground); }
+.relay-auth-aside { display: flex; flex-direction: column; justify-content: space-between; gap: 32px; padding: 40px 48px; background: var(--relay-canvas); color: var(--relay-canvas-text); }
+.relay-auth-aside-body { display: flex; flex-direction: column; gap: 18px; max-width: 420px; }
+.relay-auth-aside-body h2 { font-family: "Manrope", "IBM Plex Sans Thai", sans-serif; font-size: 54px; font-weight: 680; line-height: 1.02; }
+.relay-auth-aside-body h2 em { color: var(--relay-accent); font-style: normal; }
+.relay-auth-aside-body > p:last-child { color: oklch(0.77 0.03 150); font-size: 15px; line-height: 1.9; }
+.relay-auth-aside-foot { font-family: "Manrope", "IBM Plex Sans Thai", sans-serif; font-size: 10px; font-weight: 650; letter-spacing: 0.08em; color: oklch(0.66 0.03 150); }
+.relay-auth-card { align-self: center; justify-self: center; width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 20px; padding: 40px 36px; border: 1px solid var(--border); border-radius: var(--radius-2xl); background: var(--card); box-shadow: 0 18px 48px -24px oklch(0.3 0.05 155 / 0.25); margin: 24px; }
+.relay-auth-heading { display: flex; flex-direction: column; gap: 6px; }
+.relay-auth-heading h1 { font-family: "Manrope", "IBM Plex Sans Thai", sans-serif; font-size: 28px; font-weight: 720; }
+.relay-auth-heading p { font-size: 13.5px; line-height: 1.8; color: var(--muted-foreground); }
 .relay-auth-form { display: flex; flex-direction: column; gap: 14px; }
-.relay-auth-form label { display: block; margin-bottom: 6px; }
-.relay-auth-or { text-align: center; font-size: 12px; color: var(--muted-foreground); }
-.relay-auth-note { color: var(--muted-foreground); }
+.relay-auth-form label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; }
+.relay-auth-form input { border-radius: 9px; }
+.relay-auth-form input:focus-visible { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 22%, transparent); }
+.relay-auth-or { display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: var(--muted-foreground); }
+.relay-auth-or::before, .relay-auth-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.relay-auth-note { color: var(--muted-foreground); font-size: 14px; line-height: 1.8; }
 .relay-auth-links { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; }
-.relay-auth-links button { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
-.relay-google-button { width: 100%; gap: 10px; font-weight: 500; }
+.relay-auth-links button { color: var(--primary); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.relay-google-button { width: 100%; gap: 10px; font-weight: 500; border-radius: 9px; }
+@media (max-width: 860px) {
+  .relay-auth { grid-template-columns: 1fr; }
+  .relay-auth-aside { display: none; }
+}
 .relay-rooms { padding-block: 48px; display: flex; flex-direction: column; gap: 20px; }
 .relay-rooms h1 { font-size: 34px; font-weight: 750; }
 .relay-rooms-create, .relay-rooms-rename { display: flex; gap: 8px; flex: 1; }
@@ -1056,3 +1072,41 @@
 .relay-step-card { display: flex; flex-direction: column; gap: 8px; padding: 22px; border: 1px solid var(--border); border-radius: var(--radius-lg); }
 .relay-step-card h3 { font-size: 17px; font-weight: 700; }
 .relay-step-card p { font-size: 14px; color: var(--muted-foreground); }
+
+/* ---- Landing: dark hero band + stage mock ---- */
+.relay-hero { background: var(--relay-canvas); color: var(--relay-canvas-text); border-radius: 0 0 28px 28px; }
+.relay-hero .relay-account { color: var(--relay-canvas-text); }
+.relay-hero-kicker { display: inline-flex; align-items: center; gap: 8px; font-family: "Manrope", "IBM Plex Sans Thai", sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; color: var(--relay-accent); }
+.relay-hero-kicker-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--relay-accent); animation: relay-pulse 1.8s ease-in-out infinite; }
+@keyframes relay-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.relay-hero .relay-display-title { color: var(--relay-canvas-text); font-size: 84px; }
+.relay-hero .relay-display-title em { color: var(--relay-accent); }
+.relay-hero-sub { margin-top: 20px; max-width: 400px; color: oklch(0.77 0.03 150); font-size: 15.5px; line-height: 1.95; }
+.relay-hero-note { font-size: 12px; color: oklch(0.66 0.03 150); }
+.relay-primary-button-lg { height: 50px; padding-inline: 24px; border-radius: 10px; font-size: 14px; box-shadow: 0 10px 26px -12px color-mix(in oklab, var(--primary) 70%, black); }
+.relay-primary-button-lg:hover { transform: translateY(-2px); }
+
+.relay-stage-mock { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid oklch(0.38 0.04 155); border-radius: 18px; background: oklch(0.26 0.04 158); box-shadow: 0 30px 60px -30px oklch(0.1 0.03 155 / 0.8); }
+.relay-stage-mock-screen { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 10px; background: oklch(0.2 0.035 158); }
+.relay-stage-mock-layer { position: absolute; display: grid; place-items: center; border-radius: 6px; font-family: "Manrope", sans-serif; font-weight: 800; }
+.relay-stage-mock-a { inset: 10% 34% 26% 8%; border: 2px solid var(--relay-accent); background: oklch(0.3 0.05 150); color: var(--relay-accent); font-size: 22px; }
+.relay-stage-mock-b { inset: 30% 8% 18% 58%; border: 2px solid var(--relay-signal); background: oklch(0.28 0.05 60); color: var(--relay-signal); font-size: 18px; }
+.relay-stage-mock-caption { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 7px; padding: 6px 14px; border-radius: 999px; background: oklch(0.15 0.02 155 / 0.85); color: var(--relay-canvas-text); font-size: 12px; white-space: nowrap; }
+.relay-stage-mock-live { width: 6px; height: 6px; border-radius: 999px; background: var(--relay-accent); animation: relay-pulse 1.8s ease-in-out infinite; }
+.relay-stage-mock-bar { display: flex; align-items: center; gap: 14px; padding-inline: 6px; font-family: "Manrope", sans-serif; font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em; color: oklch(0.66 0.03 150); }
+.relay-stage-mock-dot { width: 7px; height: 7px; border-radius: 999px; background: oklch(0.45 0.04 150); display: inline-block; margin-right: 5px; }
+.relay-stage-mock-dot.is-live { background: var(--relay-signal); animation: relay-pulse 1.4s ease-in-out infinite; }
+
+.relay-steps-kicker { margin-bottom: 16px; font-family: "Manrope", "IBM Plex Sans Thai", sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; color: var(--muted-foreground); }
+.relay-steps .relay-step-card { background: var(--card); border-radius: 14px; transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease; }
+.relay-steps .relay-step-card:hover { transform: translateY(-3px); border-color: color-mix(in oklab, var(--primary) 35%, var(--border)); box-shadow: 0 14px 30px -18px oklch(0.3 0.05 155 / 0.3); }
+.relay-steps .relay-step-card svg { color: var(--primary); }
+
+@media (max-width: 860px) {
+  .relay-hero .relay-display-title { font-size: 56px; }
+  .relay-hero-grid { padding-top: 24px; }
+}
+
+/* Sign-in button on dark hero/aside */
+.relay-hero header button, .relay-auth-aside button { background: transparent; border-color: oklch(0.45 0.04 152); color: var(--relay-canvas-text); }
+.relay-hero header button:hover, .relay-auth-aside button:hover { background: oklch(0.3 0.04 155); color: var(--relay-canvas-text); }
