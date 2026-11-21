@@ -22,6 +22,13 @@ type Channel = {
   send: (message: Envelope) => Promise<string>;
 };
 const bus = vi.hoisted(() => ({ channels: [] as Channel[], messages: [] as Packet[] }));
+const access = vi.hoisted(() => ({ open: true, owner: true, key: "current-session" }));
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { rpc: vi.fn(async () => ({
+    data: [{ is_open: access.open, is_owner: access.owner, signaling_key: access.open ? access.key : null }],
+    error: null,
+  })) },
+}));
 vi.mock("@/lib/realtime-room", () => ({
   workerInterval: (callback: () => void, ms: number) => {
     const id = setInterval(callback, ms);
@@ -61,6 +68,29 @@ afterEach(() => {
   vi.useRealTimers();
   bus.channels = [];
   bus.messages = [];
+  access.open = true;
+  access.owner = true;
+});
+describe("room admission", () => {
+  it("does not join a closed room and stops the outgoing track", async () => {
+    access.open = false;
+    const station = renderHook(() => useBroadcastSession("closed"));
+    const stopTrack = vi.fn();
+    const stream = { getTracks: () => [{ stop: stopTrack }] } as unknown as MediaStream;
+    await act(async () => {
+      await expect(station.result.current.start("presentation", stream)).rejects.toThrow("ห้องปิดอยู่");
+    });
+    expect(bus.channels).toHaveLength(0);
+    expect(stopTrack).toHaveBeenCalledOnce();
+    expect(station.result.current.connected).toBe(false);
+  });
+  it("does not let a non-owner start a director session", async () => {
+    access.owner = false;
+    const director = renderHook(() => useBroadcastSession("owned"));
+    await act(async () => { await director.result.current.start("director"); });
+    expect(bus.channels).toHaveLength(0);
+    expect(director.result.current.connected).toBe(false);
+  });
 });
 describe("stage → director → all stage screens", () => {
   it("replays caption state to late outputs and ignores an older Program packet", async () => {

@@ -5,6 +5,7 @@ import { roomRealtime, workerInterval } from "./realtime-room";
 import { normalizeLayout, type StageLayout } from "@/lib/stage-layout";
 import { isSourceId, type SourceId } from "./sources";
 import { isShowCommand, type ShowCommand } from "./show-controls";
+import { canShareInRoom, getRoomAccess } from "./room-access";
 
 const PEER_DISCONNECT_GRACE_MS = 10_000;
 
@@ -60,6 +61,7 @@ export function useBroadcastSession(
   const roleRef = useRef<BroadcastRole>("director");
   const streamRef = useRef<MediaStream | null>(null);
   const activeRef = useRef(false);
+  const startAttempt = useRef(0);
   const handshakeTimerRef = useRef<(() => void) | null>(null);
   const remoteStationsRef = useRef(new Map<string, ParticipantRole>());
   const stageScreensRef = useRef(new Set<string>());
@@ -75,6 +77,7 @@ export function useBroadcastSession(
   }, []);
 
   const stop = useCallback(() => {
+    startAttempt.current += 1;
     pendingCommands.current.forEach(clearTimeout);
     pendingCommands.current.clear();
     handledCommands.current.clear();
@@ -151,6 +154,18 @@ export function useBroadcastSession(
   const start = useCallback(
     async (role: BroadcastRole, stream?: MediaStream) => {
       if (activeRef.current) return;
+      const attempt = ++startAttempt.current;
+      const access = await getRoomAccess(roomId).catch(() => null);
+      if (attempt !== startAttempt.current) {
+        stream?.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      if (!canShareInRoom(access) || (role === "director" && !access?.is_owner)) {
+        stream?.getTracks().forEach((track) => track.stop());
+        setError("ห้องปิดอยู่หรือไม่อนุญาตให้เชื่อมต่อ");
+        if (isSourceId(role)) throw new Error("ห้องปิดอยู่");
+        return;
+      }
       setError("");
       roleRef.current = role;
       receivedSequence.current = -1;
@@ -159,7 +174,7 @@ export function useBroadcastSession(
       streamRef.current = stream ?? null;
       activeRef.current = true;
 
-      const channel = roomRealtime().channel(`broadcast-room-${roomId}`, {
+      const channel = roomRealtime().channel(`broadcast-session-${access?.signaling_key}`, {
         config: { broadcast: { self: false, ack: true } },
       });
       channelRef.current = channel;
@@ -254,8 +269,10 @@ export function useBroadcastSession(
             typeof message.requestId === "string"
           ) {
             if (!handledCommands.current.has(message.requestId)) {
-              if (handledCommands.current.size >= 128)
-                handledCommands.current.delete(handledCommands.current.values().next().value!);
+              if (handledCommands.current.size >= 128) {
+                const oldest = handledCommands.current.values().next().value;
+                if (oldest) handledCommands.current.delete(oldest);
+              }
               handledCommands.current.add(message.requestId);
               const next = commandHandler.current?.(message.command);
               if (next) {

@@ -26,6 +26,12 @@ import { ControlRoom } from "@/components/stage/ControlRoom";
 import { OutputRoom } from "@/components/stage/OutputRoom";
 import { roomInviteUrl, parseRoomView, type RoomLinkView } from "@/lib/room-links";
 import { isSourceId, sourceInfo, type SourceId } from "@/lib/sources";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Power } from "lucide-react";
+import { RoomStatus } from "@/components/RoomStatus";
+import { useRoomAccess } from "@/hooks/use-room-access";
+import { canShareInRoom, setRoomOpen } from "@/lib/room-access";
 
 export const Route = createFileRoute("/_authenticated/room/$roomId")({
   validateSearch: (search: Record<string, unknown>): { view: RoomLinkView } => ({
@@ -50,11 +56,39 @@ export const Route = createFileRoute("/_authenticated/room/$roomId")({
 function BroadcastRoom() {
   const { roomId } = Route.useParams();
   const { view } = Route.useSearch();
+  const access = useRoomAccess(roomId);
+  const qc = useQueryClient();
+  const toggle = useMutation({
+    mutationFn: (open: boolean) => setRoomOpen(roomId, open),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["room-access", roomId] });
+      await qc.invalidateQueries({ queryKey: ["rooms"] });
+    },
+    onError: () => toast.error("เปลี่ยนสถานะห้องไม่สำเร็จ"),
+  });
+  const owner = access.data?.is_owner === true;
+  const open = !access.isError && canShareInRoom(access.data);
+  const director = !isSourceId(view) && view !== "stage" && view !== "presenter";
 
-  if (isSourceId(view)) return <RemoteStation roomId={roomId} role={view} />;
-  if (view === "stage" || view === "presenter")
-    return <OutputRoom roomId={roomId} presenter={view === "presenter"} />;
-  return <ControlRoom roomId={roomId} />;
+  if (access.isPending) return <main className="room-unavailable"><LoaderCircle className="relay-spin" /><p>กำลังตรวจสถานะห้อง…</p></main>;
+  if (!open || (director && !owner)) return <main className="room-unavailable">
+    <RoomStatus open={false} />
+    <h1>{access.isError ? "ตรวจสถานะห้องไม่ได้" : !access.data ? "ไม่พบห้องนี้" : director && !owner ? "เฉพาะเจ้าของห้อง" : "ห้องนี้ปิดอยู่"}</h1>
+    <p>{access.isError ? "กรุณาตรวจการเชื่อมต่อแล้วลองอีกครั้ง" : "ไม่สามารถส่งภาพเข้าห้องได้จนกว่าเจ้าของจะเปิดห้อง"}</p>
+    {owner && <Button disabled={toggle.isPending} onClick={() => toggle.mutate(true)}><Power /> เปิดห้อง</Button>}
+    {access.isError && <Button onClick={() => void access.refetch()}>ลองอีกครั้ง</Button>}
+    <Button asChild variant="outline"><Link to="/rooms">ห้องของฉัน</Link></Button>
+  </main>;
+
+  return <div key={access.data?.signaling_key}>
+    {director && <div className="room-session-bar">
+      <RoomStatus open={true} />
+      <Button size="sm" variant="outline" disabled={toggle.isPending} onClick={() => {
+        if (window.confirm("ปิดห้องและหยุดภาพจากทุกเครื่อง?")) toggle.mutate(false);
+      }}><Power size={14} /> ปิดห้อง</Button>
+    </div>}
+    {isSourceId(view) ? <RemoteStation roomId={roomId} role={view} /> : director ? <ControlRoom roomId={roomId} /> : <OutputRoom roomId={roomId} presenter={view === "presenter"} />}
+  </div>;
 }
 
 export function RemoteStation({ roomId, role }: { roomId: string; role: SourceId }) {
@@ -72,6 +106,11 @@ export function RemoteStation({ roomId, role }: { roomId: string; role: SourceId
   const [editingCrop, setEditingCrop] = useState(true);
   const [draftCrop, setDraftCrop] = useState<CropRect>(FULL_CROP);
   const [draftShape, setDraftShape] = useState<CropShape>("full");
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   useEffect(() => {
     try {
       const saved = JSON.parse(window.localStorage.getItem(cropKey(roomId, role)) ?? "null");
@@ -119,6 +158,10 @@ export function RemoteStation({ roomId, role }: { roomId: string; role: SourceId
         video: { frameRate: 30 },
         audio: false,
       });
+      if (!mounted.current) {
+        nextStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       rawStreamRef.current = nextStream;
       setStream(nextStream);
       setDraftCrop(normalizeCrop(crop));

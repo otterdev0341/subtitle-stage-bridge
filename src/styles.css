@@ -1120,3 +1120,48 @@
 .relay-account-badge.is-inverse .relay-account-name { color: var(--relay-canvas-text); }
 .relay-account-badge.is-inverse .relay-account-chevron { color: oklch(0.7 0.03 150); }
 .relay-account-badge.is-inverse:hover { border-color: oklch(0.55 0.05 150); box-shadow: none; }
+
+/* Room lifecycle and workspace views */
+.room-status { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; font-size: 12px; font-weight: 600; color: var(--muted-foreground); }
+.room-status.is-open { color: var(--primary); }
+.room-status-light { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--muted-foreground); }
+.room-status.is-open .room-status-light { background: var(--primary); box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 12%, transparent); }
+.room-session-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 24px; background: var(--secondary); border-bottom: 1px solid var(--border); }
+.room-unavailable { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; padding: 32px 20px; text-align: center; background: var(--background); color: var(--foreground); }
+.room-unavailable h1 { font-size: 28px; font-weight: 700; }
+.room-unavailable p { max-width: 450px; color: var(--muted-foreground); }
+.rooms-heading, .rooms-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.rooms-eyebrow, .rooms-item-id { display: block; font-size: 10px; font-weight: 600; color: var(--muted-foreground); }
+.rooms-count { font-size: 13px; color: var(--muted-foreground); }
+.rooms-list-heading { margin-top: 14px; padding-top: 20px; border-top: 1px solid var(--border); }
+.rooms-list-heading h2 { font-size: 15px; font-weight: 650; }
+.rooms-view-switch { display: flex; gap: 3px; }
+.rooms-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.rooms-card { display: flex; flex-direction: column; min-width: 0; gap: 12px; padding: 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.rooms-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.rooms-card-icon { display: grid; width: 44px; height: 44px; place-items: center; color: var(--primary); background: var(--secondary); border-radius: 8px; }
+.rooms-item-name { display: block; min-width: 0; font-size: 17px; font-weight: 650; overflow-wrap: anywhere; }
+.rooms-item-name:hover { color: var(--primary); }
+.rooms-item-date { color: var(--muted-foreground); font-size: 12px; }
+.rooms-item-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.rooms-card .rooms-item-actions { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
+.rooms-item-actions > :last-child { margin-left: auto; }
+.rooms-rename { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rooms-rename > div { display: flex; gap: 6px; }
+.rooms-table-scroll { width: 100%; overflow-x: auto; }
+.rooms-table { width: 100%; border-collapse: collapse; text-align: left; }
+.rooms-table th { padding: 12px 16px; background: var(--secondary); color: var(--muted-foreground); font-size: 11px; font-weight: 650; white-space: nowrap; }
+.rooms-table td { padding: 18px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.rooms-table td:first-child { width: 36%; min-width: 200px; }
+.rooms-table .rooms-item-id { margin-top: 5px; }
+.rooms-table .rooms-item-actions { min-width: 225px; flex-wrap: nowrap; }
+.rooms-table .rooms-item-date { white-space: nowrap; }
+.rooms-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 70px 20px; color: var(--muted-foreground); }
+@media (max-width: 960px) { .rooms-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .rooms-card-grid { grid-template-columns: minmax(0, 1fr); }
+  .rooms-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .relay-rooms-create { flex-wrap: wrap; }
+  .relay-rooms-create input { flex: 1; min-width: 160px; }
+  .room-session-bar { padding-inline: 16px; }
+}

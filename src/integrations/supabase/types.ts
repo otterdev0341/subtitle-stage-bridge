@@ -39,8 +39,10 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_open: boolean
           name: string
           owner_id: string
+          signaling_key: string
           state: Json
           translation: Json
           updated_at: string
@@ -48,8 +50,10 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          is_open?: boolean
           name?: string
           owner_id: string
+          signaling_key?: string
           state?: Json
           translation?: Json
           updated_at?: string
@@ -57,8 +61,10 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          is_open?: boolean
           name?: string
           owner_id?: string
+          signaling_key?: string
           state?: Json
           translation?: Json
           updated_at?: string
@@ -94,7 +100,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_room_access: {
+        Args: { _room_id: string }
+        Returns: {
+          is_open: boolean
+          is_owner: boolean
+          signaling_key: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
