@@ -44,7 +44,9 @@ import { CroppedVideo } from "./CroppedVideo";
 import { LayerGeometryControls } from "./LayerGeometryControls";
 import { TemplatePreview } from "./TemplatePreview";
 import { CaptionControls } from "./CaptionControls";
-import { TranslationDock } from "./TranslationDock";
+import { GeminiDock } from "./GeminiDock";
+import { AccountMenu } from "@/components/AccountMenu";
+import { useRoomSync } from "@/lib/account-sync";
 import { ShowToolbar } from "./ShowToolbar";
 
 export function ControlRoom({ roomId }: { roomId: string }) {
@@ -76,6 +78,8 @@ export function ControlRoom({ roomId }: { roomId: string }) {
   );
   const session = useBroadcastSession(roomId, onCommand);
   const { start, stop, sendLayout } = session;
+  const sync = useRoomSync(roomId);
+  const { saveState } = sync;
   useEffect(() => {
     void start("director");
     return stop;
@@ -90,6 +94,16 @@ export function ControlRoom({ roomId }: { roomId: string }) {
     }
   }, [program, sendLayout, restored, roomId]);
   useEffect(() => {
+    if (!restored) return;
+    saveState({
+      holdTexts: draft.holdTexts,
+      holdImages: draft.holdImages,
+      quickSlots: draft.quickSlots,
+      program,
+    });
+  }, [draft.holdTexts, draft.holdImages, draft.quickSlots, program, restored, saveState]);
+  useEffect(() => {
+    if (!sync.ready) return;
     setTemplates(loadTemplates(localStorage));
     try {
       const holdTexts = JSON.parse(localStorage.getItem(HOLD_KEY) ?? "null");
@@ -114,7 +128,7 @@ export function ControlRoom({ roomId }: { roomId: string }) {
       /* persisted settings are optional */
     }
     setRestored(true);
-  }, [roomId, setDraft, commit]);
+  }, [roomId, setDraft, commit, sync.ready]);
   const streams = emptyStreams();
   for (const source of SOURCES)
     streams[source.id] =
@@ -195,11 +209,11 @@ export function ControlRoom({ roomId }: { roomId: string }) {
   return (
     <main className="control-room">
       <header className="control-header">
-        <Link to="/" className="control-brand">
-          botnoi <span>live relay</span>
+        <Link to="/rooms" className="control-brand" title="กลับไปห้องของฉัน">
+          live <span>relay</span>
         </Link>
         <div className="control-room-id">
-          ROOM {roomId.slice(0, 8).toUpperCase()}{" "}
+          {sync.roomName || `ROOM ${roomId.slice(0, 8).toUpperCase()}`}{" "}
           <span className="control-badge">
             {session.connected ? "เชื่อมต่อแล้ว" : "กำลังเชื่อมต่อ"}
           </span>
@@ -233,6 +247,7 @@ export function ControlRoom({ roomId }: { roomId: string }) {
               จอฉายพร้อมปุ่มลัด
             </a>
           </Button>
+          <AccountMenu />
         </div>
       </header>
       <div className="control-main">
@@ -255,7 +270,6 @@ export function ControlRoom({ roomId }: { roomId: string }) {
             TAKE · ส่ง Preview ขึ้น LIVE <kbd>Space</kbd>
           </Button>
         </div>
-        <TranslationDock roomId={roomId} roomConnected={session.connected} />
         {(notice || session.error) && (
           <p className={session.error ? "control-error" : "control-notice"} role="status">
             {session.error || notice}
@@ -264,8 +278,10 @@ export function ControlRoom({ roomId }: { roomId: string }) {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="control-main-tabs" aria-label="งานควบคุมเวที">
             <TabsTrigger value="live">Live</TabsTrigger>
-            <TabsTrigger value="sources">Sources · แหล่งภาพ</TabsTrigger>
-            <TabsTrigger value="scene">Scene Editor</TabsTrigger>
+            <TabsTrigger value="links">ลิงก์</TabsTrigger>
+            <TabsTrigger value="sources">แหล่งภาพ</TabsTrigger>
+            <TabsTrigger value="scene">จัดเวที · เทมเพลต · พักจอ</TabsTrigger>
+            <TabsTrigger value="translate">แปลสด</TabsTrigger>
           </TabsList>
           <TabsContent value="live">
             <div className="control-monitor-grid">
@@ -345,7 +361,7 @@ export function ControlRoom({ roomId }: { roomId: string }) {
               <summary>ซับข้อความบนจอ Program · พิมพ์เอง (ไม่บังคับ)</summary>
               <p className="control-muted">
                 ข้อความทับภาพ เช่น ชื่อผู้พูด หัวข้อ หรือประกาศ · ใช้ปุ่ม S ซ่อน/แสดงได้ ·
-                คำแปลเสียงสดผู้ฟังดูผ่าน QR ของ Botnoi
+                คำแปลสดจากแท็บ "แปลสด" จะขึ้นที่นี่อัตโนมัติ
               </p>
               <CaptionControls
                 track={program.captions ?? defaultCaption()}
@@ -353,6 +369,41 @@ export function ControlRoom({ roomId }: { roomId: string }) {
                 onPublish={publish}
               />
             </details>
+          </TabsContent>
+          <TabsContent value="links">
+            <section className="control-card">
+              <h2>ลิงก์ของห้องนี้</h2>
+              <p className="control-muted">ทุกลิงก์ต้องเข้าสู่ระบบก่อนเปิด · ส่งลิงก์ให้แต่ละเครื่องที่จะแชร์จอ</p>
+              <ul className="control-link-list">
+                {SOURCES.map((s) => (
+                  <li key={s.id}>
+                    <span className={`relay-connection-light${streams[s.id] ? " is-online" : ""}`} />
+                    <strong>จอ {s.letter}</strong>
+                    <span className="control-muted">{streams[s.id] ? "กำลังส่งภาพ" : "ยังไม่เชื่อมต่อ"}</span>
+                    <Button variant="outline" size="sm" onClick={() => void copy(s.id)}>คัดลอกลิงก์</Button>
+                    <Button asChild variant="ghost" size="sm">
+                      <a href={roomPath(roomId, s.id)} target="_blank" rel="noreferrer">เปิด</a>
+                    </Button>
+                  </li>
+                ))}
+                <li>
+                  <span className={`relay-connection-light${session.participants.some((p) => p.role === "translation-display") ? " is-online" : ""}`} />
+                  <strong>Presenter เต็มจอ</strong>
+                  <span className="control-muted">เปิดบนเครื่องที่ต่อโปรเจกเตอร์</span>
+                  <Button variant="outline" size="sm" onClick={() => void copy("presenter")}>คัดลอกลิงก์</Button>
+                  <Button asChild variant="ghost" size="sm">
+                    <a href={roomPath(roomId, "presenter")} target="_blank" rel="noreferrer">เปิด</a>
+                  </Button>
+                </li>
+              </ul>
+            </section>
+          </TabsContent>
+          <TabsContent value="translate">
+            <section className="control-card">
+              <h2>แปลสดด้วย Gemini Live</h2>
+              <p className="control-muted">ใช้ไมค์ของเครื่องนี้ คำแปลขึ้นเป็นซับบน Program ทันที ปรับขนาดหรือซ่อนซับได้ในแท็บ Live</p>
+              <GeminiDock settings={sync.translation} onSettings={sync.saveTranslation} onPublish={publish} />
+            </section>
           </TabsContent>
           <TabsContent value="sources">
             <section className="control-card">
@@ -740,7 +791,11 @@ export function ControlRoom({ roomId }: { roomId: string }) {
                       <button
                         type="button"
                         aria-label={`ลบเทมเพลต ${t.name}`}
-                        onClick={() => setTemplates(deleteTemplate(localStorage, t.id))}
+                        onClick={() => {
+                          const list = deleteTemplate(localStorage, t.id);
+                          setTemplates(list);
+                          void sync.syncTemplates(list);
+                        }}
                       >
                         ลบ
                       </button>
@@ -760,7 +815,11 @@ export function ControlRoom({ roomId }: { roomId: string }) {
                   variant="outline"
                   disabled={!templateName.trim()}
                   onClick={() => {
-                    setTemplates(saveTemplate(localStorage, templateName.trim(), draft));
+                    {
+                      const list = saveTemplate(localStorage, templateName.trim(), draft);
+                      setTemplates(list);
+                      void sync.syncTemplates(list);
+                    }
                     setTemplateName("");
                   }}
                 >

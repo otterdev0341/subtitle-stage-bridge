@@ -1030,3 +1030,29 @@
 .relay-geometry-controls small { display: block; font-size: 11px; color: var(--muted-foreground); }
 .relay-mask-viewport { background: #000; }
 .relay-content-ghost { inset: 0; z-index: 24; }
+
+/* Accounts, rooms, translation */
+.relay-account { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.relay-account-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); }
+.relay-auth { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--background); color: var(--foreground); }
+.relay-auth-card { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 18px; padding: 32px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--card); }
+.relay-auth-card h1 { font-size: 26px; font-weight: 700; }
+.relay-auth-form { display: flex; flex-direction: column; gap: 14px; }
+.relay-auth-form label { display: block; margin-bottom: 6px; }
+.relay-auth-or { text-align: center; font-size: 12px; color: var(--muted-foreground); }
+.relay-auth-note { color: var(--muted-foreground); }
+.relay-auth-links { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; }
+.relay-auth-links button { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+.relay-google-button { width: 100%; gap: 10px; font-weight: 500; }
+.relay-rooms { padding-block: 48px; display: flex; flex-direction: column; gap: 20px; }
+.relay-rooms h1 { font-size: 34px; font-weight: 750; }
+.relay-rooms-create, .relay-rooms-rename { display: flex; gap: 8px; flex: 1; }
+.relay-rooms-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.relay-rooms-list li { display: flex; align-items: center; gap: 6px; padding: 12px 14px; }
+.relay-rooms-list li + li { border-top: 1px solid var(--border); }
+.relay-rooms-link { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.relay-rooms-link span, .relay-rooms-empty { font-size: 12px; color: var(--muted-foreground); }
+.relay-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; padding-bottom: 40px; }
+.relay-step-card { display: flex; flex-direction: column; gap: 8px; padding: 22px; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.relay-step-card h3 { font-size: 17px; font-weight: 700; }
+.relay-step-card p { font-size: 14px; color: var(--muted-foreground); }

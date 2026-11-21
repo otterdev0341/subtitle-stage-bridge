@@ -27,7 +27,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
   Link: ({ children }: React.PropsWithChildren) => <a>{children}</a>,
 }));
-import { RemoteStation } from "@/routes/room.$roomId";
+import { RemoteStation } from "@/routes/_authenticated/room.$roomId";
 
 afterEach(() => {
   cleanup();

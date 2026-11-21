@@ -27,15 +27,15 @@ import { OutputRoom } from "@/components/stage/OutputRoom";
 import { roomInviteUrl, parseRoomView, type RoomLinkView } from "@/lib/room-links";
 import { isSourceId, sourceInfo, type SourceId } from "@/lib/sources";
 
-export const Route = createFileRoute("/room/$roomId")({
+export const Route = createFileRoute("/_authenticated/room/$roomId")({
   validateSearch: (search: Record<string, unknown>): { view: RoomLinkView } => ({
     view: parseRoomView(search),
   }),
   head: ({ params }) => ({
     meta: [
-      { title: `ห้อง ${params.roomId.slice(0, 8)} — Botnoi Live Relay` },
+      { title: `ห้อง ${params.roomId.slice(0, 8)} — Live Relay` },
       { name: "description", content: "เชื่อมภาพพรีเซนต์กับคำบรรยายสดและปรับตำแหน่งได้แบบเรียลไทม์" },
-      { property: "og:title", content: `ห้องถ่ายทอดสด — Botnoi Live Relay` },
+      { property: "og:title", content: `ห้องถ่ายทอดสด — Live Relay` },
       {
         property: "og:description",
         content: "ประกอบภาพพรีเซนต์และคำบรรยายแปลจากสองเครื่องบนเวทีเดียวกัน",
@@ -193,7 +193,7 @@ export function RemoteStation({ roomId, role }: { roomId: string; role: SourceId
             <RadioTower size={18} />
           </span>
           <span>
-            botnoi<span className="relay-brand-light">{" live relay"}</span>
+            live<span className="relay-brand-light">{" relay"}</span>
           </span>
         </Link>
         <div className="relay-station-status">

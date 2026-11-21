@@ -1,16 +1,15 @@
-import { useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowDown, ArrowUpRight, RadioTower } from "lucide-react";
-
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowUpRight, Languages, MonitorUp, Presentation, RadioTower } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AccountMenu } from "@/components/AccountMenu";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Botnoi Live Relay — ถ่ายทอดภาพและคำบรรยายสด" },
-      { name: "description", content: "จัดภาพจากสูงสุด 5 เครื่อง พร้อมซับแปล Gemini และจอฉายที่ sync กัน" },
-      { property: "og:title", content: "Botnoi Live Relay — ถ่ายทอดภาพและคำบรรยายสด" },
-      { property: "og:description", content: "เชื่อมจอพรีเซนต์และจอแปลสดเข้ากับเวทีเดียว" },
+      { title: "Live Relay — รวมจอและแปลสดบนเวทีเดียว" },
+      { name: "description", content: "รับภาพแชร์จอสูงสุด 5 เครื่อง จัดวางบนเวที แปลเสียงพูดสดด้วย Gemini Live แล้วส่งขึ้นจอ Presenter" },
+      { property: "og:title", content: "Live Relay — รวมจอและแปลสดบนเวทีเดียว" },
+      { property: "og:description", content: "แชร์จอ จัดเวที และขึ้นซับแปลสดจากห้องควบคุมเดียว" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -18,159 +17,56 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
+const STEPS = [
+  { icon: RadioTower, title: "สร้างห้อง", text: "ห้องและการจัดเวทีจำไว้ในบัญชี เปิดจากเครื่องไหนก็ได้" },
+  { icon: MonitorUp, title: "ส่งลิงก์แชร์จอ", text: "ส่งลิงก์ A–E ให้แต่ละเครื่อง เลือกจอและครอปเฉพาะส่วนที่ต้องการ" },
+  { icon: Languages, title: "แปลสด", text: "เลือกภาษาและคำศัพท์เฉพาะ เสียงพูดกลายเป็นซับบนจอทันที" },
+  { icon: Presentation, title: "เปิด Presenter", text: "ลิงก์ Presenter แสดงเวทีเต็มจอบนโปรเจกเตอร์" },
+];
+
 function Home() {
-  const [roomId, setRoomId] = useState("");
-  const navigate = useNavigate();
-
-  const createRoom = () => {
-    const id = crypto.randomUUID();
-    void navigate({ to: "/room/$roomId", params: { roomId: id }, search: { view: "director" } });
-  };
-
-  const enterRoom = () => {
-    const id = roomId.trim();
-    if (id.length > 0) {
-      void navigate({ to: "/room/$roomId", params: { roomId: id }, search: { view: "director" } });
-    }
-  };
-
   return (
     <main className="relay-home min-h-screen px-5 py-6 sm:px-10 sm:py-9">
       <div className="mx-auto max-w-6xl">
         <header className="flex items-center justify-between">
-          <a href="/" className="relay-brand" aria-label="Botnoi Live Relay home">
+          <Link to="/" className="relay-brand" aria-label="Live Relay">
             <span className="relay-brand-mark">
               <RadioTower size={18} strokeWidth={2.2} />
             </span>
             <span>
-              botnoi<span className="relay-brand-light">{" live relay"}</span>
+              live<span className="relay-brand-light"> relay</span>
             </span>
-          </a>
-          <div className="relay-live-label">
-            <span className="relay-live-dot" /> LIVE BROADCAST
-          </div>
+          </Link>
+          <AccountMenu />
         </header>
-
         <section className="relay-home-intro grid items-end gap-10 pb-12 pt-14 md:grid-cols-[1.15fr_.85fr] md:pb-16 md:pt-24">
-          <div>
-            <div className="relay-overline">
-              <span>ภาพพรีเซนต์</span>
-              <span className="relay-overline-line" />
-              <span>คำแปลสด</span>
-            </div>
-            <h1 className="relay-display-title">
-              ห้าจอ.
-              <br />
-              <em>เวทีเดียว.</em>
-            </h1>
-          </div>
+          <h1 className="relay-display-title">
+            ห้าจอ.
+            <br />
+            <em>เวทีเดียว.</em>
+          </h1>
           <div className="relay-intro-aside">
-            <p>รวมภาพพรีเซนต์กับคำบรรยายจากอีกเครื่อง จัดวางให้พอดี แล้วส่งภาพจริงขึ้นจอได้ทันที</p>
-            <Button className="relay-primary-button mt-7" onClick={createRoom}>
-              สร้างห้องควบคุม <ArrowUpRight size={17} />
+            <p>รวมภาพจากหลายเครื่อง จัดวางบนเวที ขึ้นซับแปลสด แล้วส่งขึ้นจอจริงได้ทันที</p>
+            <Button asChild className="relay-primary-button mt-7">
+              <Link to="/rooms">
+                ไปที่ห้องของฉัน <ArrowUpRight size={17} />
+              </Link>
             </Button>
           </div>
         </section>
-
-        <section className="relay-workspace" aria-label="ตั้งค่าการถ่ายทอดสด">
-          <div className="relay-workspace-heading flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <span className="relay-overline-small">เริ่มต้นถ่ายทอด</span>
-              <h2>เตรียมการเชื่อมต่อ</h2>
+        <section className="relay-steps" aria-label="ขั้นตอน">
+          {STEPS.map(({ icon: Icon, title, text }, i) => (
+            <div key={title} className="relay-step-card">
+              <span className="relay-setup-number">0{i + 1}</span>
+              <Icon size={20} />
+              <h3>{title}</h3>
+              <p>{text}</p>
             </div>
-            <div className="relay-step-index">
-              <span>01</span>
-              <span className="relay-step-separator">·</span>
-              <span>02</span>
-              <span className="relay-step-separator">·</span>
-              <span>03</span>
-            </div>
-          </div>
-
-          <div className="relay-setup-grid">
-            <div className="relay-setup-step">
-              <div className="relay-setup-number">01</div>
-              <div className="relay-setup-step-content">
-                <span className="relay-overline-small">ผู้ดำเนินรายการ</span>
-                <h3>เปิดห้องควบคุม</h3>
-                <p>
-                  สร้างห้องส่วนตัวสำหรับงานของคุณ ระบบจะเตรียมลิงก์ส่งภาพ A–E และลิงก์ Presenter ให้ในห้องควบคุม
-                </p>
-                <Button variant="outline" className="relay-outline-button" onClick={createRoom}>
-                  <RadioTower size={16} /> สร้างห้องใหม่
-                </Button>
-              </div>
-            </div>
-            <div className="relay-setup-divider">
-              <span>
-                <ArrowDown size={15} />
-              </span>
-            </div>
-            <div className="relay-setup-step">
-              <div className="relay-setup-number">02</div>
-              <div className="relay-setup-step-content">
-                <span className="relay-overline-small">สูงสุดห้าแหล่งภาพ</span>
-                <h3>ส่งลิงก์ให้เครื่องแชร์จอ</h3>
-                <p>
-                  ส่งลิงก์ A–E ให้แต่ละเครื่อง เลือกแชร์หน้าจอแล้ว crop เฉพาะส่วนที่ต้องการ จากนั้นจัดภาพใน Preview
-                  และกด TAKE เมื่อพร้อมขึ้น LIVE
-                </p>
-              </div>
-            </div>
-            <div className="relay-setup-divider">
-              <span>
-                <ArrowDown size={15} />
-              </span>
-            </div>
-            <div className="relay-setup-step">
-              <div className="relay-setup-number">03</div>
-              <div className="relay-setup-step-content">
-                <span className="relay-overline-small">จอฉายหน้างาน</span>
-                <h3>จัดวางภาพบนเวที</h3>
-                <p>ลาก ย้าย และครอปกรอบคำบรรยายให้ซ้อนบนภาพพรีเซนต์ แล้วเปิดจอฉายเต็มจอได้เลย</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="relay-rejoin">
-            <div className="relay-rejoin-text">
-              <span className="relay-overline-small">มีรหัสห้องอยู่แล้ว</span>
-              <p>วางรหัสห้องเพื่อกลับเข้าสู่ห้องควบคุมเดิม</p>
-            </div>
-            <form
-              className="relay-room-entry"
-              onSubmit={(event) => {
-                event.preventDefault();
-                enterRoom();
-              }}
-            >
-              <label className="sr-only" htmlFor="room-code">
-                รหัสห้อง
-              </label>
-              <input
-                id="room-code"
-                value={roomId}
-                onChange={(event) => setRoomId(event.target.value)}
-                placeholder="วางรหัสห้องที่นี่"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                disabled={!roomId.trim()}
-                aria-label="เข้าห้อง"
-                title="เข้าห้อง"
-              >
-                <ArrowUpRight size={17} />
-              </Button>
-            </form>
-          </div>
+          ))}
         </section>
-
         <footer className="relay-home-footer flex flex-wrap items-center justify-between gap-3 py-7">
-          <span>
-            BOTNOI LIVE RELAY <span className="relay-footer-dot">·</span> LIVE COMPOSITION
-          </span>
-          <span>การเชื่อมต่อเข้ารหัสระหว่างอุปกรณ์</span>
+          <span>LIVE RELAY · LIVE COMPOSITION</span>
+          <span>ภาพส่งตรงระหว่างอุปกรณ์</span>
         </footer>
       </div>
     </main>

@@ -20,6 +20,6 @@ describe("App routing", () => {
 
     const matches = router.matchRoutes("/room/room-123?view=translation");
 
-    expect(matches.at(-1)?.routeId).toBe("/room/$roomId");
+    expect(matches.at(-1)?.routeId).toBe("/_authenticated/room/$roomId");
   });
 });
