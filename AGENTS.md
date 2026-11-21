@@ -44,3 +44,4 @@ use the editor.
 - Room/source identities key their media views and pending account saves are canceled on unmount so navigation and closing a room release the previous session without late updates.
 - Gemini token errors use fixed public messages; missing credentials, access denial and quota failures are terminal while transient transport failures have bounded recovery.
 - Sender presentation styles are scoped by sender-page in station.css so preparation, crop preview and live states do not alter director or presenter styling.
+- Caption appearance is serialized on the Program caption track and edited through shared controls; receivers animate locally so display settings stay consistent without changing translation transport.

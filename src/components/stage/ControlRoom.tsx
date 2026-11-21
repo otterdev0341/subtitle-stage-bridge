@@ -45,6 +45,7 @@ import { CroppedVideo } from "./CroppedVideo";
 import { LayerGeometryControls } from "./LayerGeometryControls";
 import { TemplatePreview } from "./TemplatePreview";
 import { CaptionControls } from "./CaptionControls";
+import { CaptionAppearance } from "./CaptionAppearance";
 import { GeminiDock } from "./GeminiDock";
 import { AccountMenu } from "@/components/AccountMenu";
 import { useRoomSync } from "@/lib/account-sync";
@@ -417,6 +418,7 @@ export function ControlRoom({ roomId }: { roomId: string }) {
               <h2>แปลสดด้วย Gemini Live</h2>
               <p className="control-muted">ใช้ไมค์ของเครื่องนี้ คำแปลขึ้นเป็นซับบน Program ทันที ปรับขนาดหรือซ่อนซับได้ในแท็บ Live</p>
               <GeminiDock ready={sync.ready} active={tab === "translate"} settings={sync.translation} onSettings={sync.saveTranslation} onPublish={publish} />
+              <CaptionAppearance track={program.captions ?? defaultCaption()} onChange={setCaptions} />
             </section>
           </TabsContent>
           <TabsContent value="sources">

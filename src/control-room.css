@@ -615,6 +615,34 @@
   font-weight: 400;
   margin-bottom: 0.2em;
 }
+.control-caption.caption-fade,
+.control-caption.caption-fill-fade {
+  animation: caption-fade-in 300ms ease-out both;
+  transition: opacity 300ms ease;
+}
+.control-caption.caption-fill-fade p {
+  animation: caption-fill-in 650ms ease-out both;
+}
+.control-caption.caption-exiting {
+  animation: none;
+  opacity: 0;
+}
+@keyframes caption-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes caption-fill-in {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .control-caption.caption-fade,
+  .control-caption.caption-fill-fade,
+  .control-caption.caption-fill-fade p {
+    animation: none;
+    transition: none;
+  }
+}
 .control-output {
   position: relative;
   width: 100vw;

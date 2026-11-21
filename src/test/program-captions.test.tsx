@@ -93,6 +93,7 @@ describe("caption presentation", () => {
     const view = render(<CaptionOverlay track={track} />);
     expect(screen.getByText("Subtitle")).toBeTruthy();
     act(() => vi.advanceTimersByTime(13000));
+    act(() => vi.advanceTimersByTime(300));
     expect(screen.queryByText("Subtitle")).toBeNull();
     view.rerender(<CaptionOverlay track={{ ...track, held: true }} />);
     expect(screen.getByText("Subtitle")).toBeTruthy();

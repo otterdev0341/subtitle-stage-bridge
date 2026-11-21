@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { defaultCaption, type CaptionTrack } from "@/lib/captions";
+import { CaptionAppearance } from "./CaptionAppearance";
 
 /** Manual subtitle layer on Program: type, publish, hold, hide, clear and style. */
 export function CaptionControls({
@@ -61,7 +62,6 @@ export function CaptionControls({
         {(
           [
             ["fontSize", "ขนาดตัวอักษร (px)", 20, 120],
-            ["maxLines", "จำนวนบรรทัด", 1, 4],
             ["bottom", "ระยะจากขอบล่าง (%)", 0, 40],
             ["background", "ความเข้มพื้นหลัง (%)", 0, 100],
             ["readingSeconds", "ค้างข้อความ (วินาที · 0 = ไม่หมดเวลา)", 0, 60],
@@ -87,6 +87,7 @@ export function CaptionControls({
           </label>
         ))}
       </div>
+      <CaptionAppearance track={track} onChange={onChange} />
     </div>
   );
 }

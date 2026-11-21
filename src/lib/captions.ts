@@ -5,6 +5,7 @@ export type CaptionStyle = {
   background: number;
   bilingual: boolean;
   readingSeconds: number;
+  animation?: "none" | "fade" | "fill-fade";
 };
 export type CaptionTrack = {
   sequence: number;
@@ -37,6 +38,7 @@ export const defaultCaption = (): CaptionTrack => ({
     background: 85,
     bilingual: false,
     readingSeconds: 12,
+    animation: "fill-fade",
   },
 });
 export function publishCaption(
