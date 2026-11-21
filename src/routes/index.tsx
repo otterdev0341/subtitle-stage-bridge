@@ -34,7 +34,7 @@ function Home() {
               <RadioTower size={18} strokeWidth={2.2} />
             </span>
             <span>
-              live<span className="relay-brand-light"> relay</span>
+              live<span className="relay-brand-light">{" relay"}</span>
             </span>
           </Link>
           <AccountMenu />

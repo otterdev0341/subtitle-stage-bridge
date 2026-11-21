@@ -91,7 +91,7 @@ function AuthPage() {
             <RadioTower size={18} />
           </span>
           <span>
-            live<span className="relay-brand-light"> relay</span>
+            live<span className="relay-brand-light">{" relay"}</span>
           </span>
         </Link>
         <h1>{title}</h1>
