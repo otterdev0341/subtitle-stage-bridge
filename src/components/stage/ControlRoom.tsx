@@ -214,7 +214,7 @@ export function ControlRoom({ roomId }: { roomId: string }) {
         </Link>
         <div className="control-room-id">
           {sync.roomName || `ROOM ${roomId.slice(0, 8).toUpperCase()}`}{" "}
-          <span className="control-badge">
+          <span className={`control-badge${session.connected ? " is-online" : ""}`}>
             {session.connected ? "เชื่อมต่อแล้ว" : "กำลังเชื่อมต่อ"}
           </span>
         </div>
@@ -254,16 +254,22 @@ export function ControlRoom({ roomId }: { roomId: string }) {
         <div className="control-summary">
           <div>
             <h1>Control Room</h1>
-            <p>
-              <strong>
+            <p className="control-status-line">
+              <span
+                className={`control-state-pill ${
+                  program.blackout ? "is-blackout" : program.hold ? "is-hold" : "is-live"
+                }`}
+              >
                 {program.blackout
-                  ? "PROGRAM · จอดำ"
+                  ? "จอดำ"
                   : program.hold
-                    ? `PROGRAM · ${program.holdTexts[program.hold.id].title}`
-                    : "PROGRAM · LIVE"}
-              </strong>{" "}
-              · {SOURCES.filter((s) => streams[s.id]).length}/5 แหล่งภาพ ·{" "}
-              {dirty ? "มี Preview รอส่ง" : "ฉากตรงกับ Program"}
+                    ? `พักจอ · ${program.holdTexts[program.hold.id].title}`
+                    : "LIVE"}
+              </span>
+              <span>{SOURCES.filter((s) => streams[s.id]).length}/5 แหล่งภาพ</span>
+              <span className={dirty ? "control-dirty" : "control-muted"}>
+                {dirty ? "● มี Preview รอส่ง" : "ฉากตรงกับ Program"}
+              </span>
             </p>
           </div>
           <Button className="control-take" onClick={take}>
@@ -322,8 +328,13 @@ export function ControlRoom({ roomId }: { roomId: string }) {
                   }}
                 >
                   <strong>{s.letter}</strong>
-                  <span>{streams[s.id] ? "เชื่อมต่อ" : "ไม่มีสัญญาณ"}</span>
-                  <span>{program.layers[s.id].visible ? "บน Program" : "ซ่อน"}</span>
+                  <span className="control-source-row">
+                    <span className={`control-source-dot${streams[s.id] ? " is-online" : ""}`} />
+                    {streams[s.id] ? "เชื่อมต่อ" : "ไม่มีสัญญาณ"}
+                  </span>
+                  <span className="control-muted">
+                    {program.layers[s.id].visible ? "บน Program" : "ซ่อน"}
+                  </span>
                 </button>
               ))}
             </div>
