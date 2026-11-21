@@ -1,5 +1,7 @@
 # Live subtitle broadcast
 
+- [x] Replace native room-close confirmations with a shared modal and verify cancellation and closing while signed in.
+
 - [x] Add owner-controlled room open/close and status lights; stop existing shares and block closed-room invitations.
 - [x] Default My Rooms to cards with a remembered table option; verify signed-in room lifecycle.
 

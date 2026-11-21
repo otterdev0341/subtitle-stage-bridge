@@ -30,6 +30,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Power } from "lucide-react";
 import { RoomStatus } from "@/components/RoomStatus";
+import { CloseRoomDialog } from "@/components/CloseRoomDialog";
 import { useRoomAccess } from "@/hooks/use-room-access";
 import { canShareInRoom, setRoomOpen } from "@/lib/room-access";
 
@@ -58,6 +59,7 @@ function BroadcastRoom() {
   const { view } = Route.useSearch();
   const access = useRoomAccess(roomId);
   const qc = useQueryClient();
+  const [confirmClose, setConfirmClose] = useState(false);
   const toggle = useMutation({
     mutationFn: (open: boolean) => setRoomOpen(roomId, open),
     onSuccess: async () => {
@@ -83,10 +85,10 @@ function BroadcastRoom() {
   return <div key={access.data?.signaling_key}>
     {director && <div className="room-session-bar">
       <RoomStatus open={true} />
-      <Button size="sm" variant="outline" disabled={toggle.isPending} onClick={() => {
-        if (window.confirm("ปิดห้องและหยุดภาพจากทุกเครื่อง?")) toggle.mutate(false);
-      }}><Power size={14} /> ปิดห้อง</Button>
+      <Button size="sm" variant="outline" disabled={toggle.isPending} onClick={() => setConfirmClose(true)}><Power size={14} /> ปิดห้อง</Button>
     </div>}
+    <CloseRoomDialog open={confirmClose} onOpenChange={setConfirmClose} pending={toggle.isPending}
+      onConfirm={() => toggle.mutateAsync(false)} />
     {isSourceId(view) ? <RemoteStation roomId={roomId} role={view} /> : director ? <ControlRoom roomId={roomId} /> : <OutputRoom roomId={roomId} presenter={view === "presenter"} />}
   </div>;
 }

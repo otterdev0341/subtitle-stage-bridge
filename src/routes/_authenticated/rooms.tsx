@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AccountMenu } from "@/components/AccountMenu";
 import { RoomStatus } from "@/components/RoomStatus";
+import { CloseRoomDialog } from "@/components/CloseRoomDialog";
 import { setRoomOpen } from "@/lib/room-access";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -32,6 +33,7 @@ function MyRooms() {
   const [editing, setEditing] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [view, setView] = useState<"card" | "table">("card");
+  const [closingRoom, setClosingRoom] = useState<RoomRow | null>(null);
   useEffect(() => {
     try { setView(localStorage.getItem(`relay-rooms-view-${user.id}`) === "table" ? "table" : "card"); } catch { /* optional preference */ }
   }, [user.id]);
@@ -85,7 +87,8 @@ function MyRooms() {
   });
   const controls = (room: RoomRow) => <div className="rooms-item-actions">
     <Button size="sm" variant={room.is_open ? "outline" : "default"} disabled={toggle.isPending} onClick={() => {
-      if (!room.is_open || window.confirm(`ปิดห้อง "${room.name}" และหยุดภาพจากทุกเครื่อง?`)) toggle.mutate({ id: room.id, open: !room.is_open });
+      if (room.is_open) setClosingRoom(room);
+      else toggle.mutate({ id: room.id, open: true });
     }}><Power size={14} />{room.is_open ? "ปิดห้อง" : "เปิดห้อง"}</Button>
     <Button size="icon" variant="ghost" title="เปลี่ยนชื่อ" aria-label={`เปลี่ยนชื่อ ${room.name}`} onClick={() => { setEditing(room.id); setEditName(room.name); }}><Pencil size={15} /></Button>
     <Button size="icon" variant="ghost" title="ลบห้อง" aria-label={`ลบห้อง ${room.name}`} disabled={remove.isPending} onClick={() => window.confirm(`ลบห้อง "${room.name}"?`) && remove.mutate(room.id)}><Trash2 size={15} /></Button>
@@ -129,6 +132,9 @@ function MyRooms() {
             {rooms.data.map((room) => <tr key={room.id}><td>{roomName(room)}<span className="rooms-item-id">{room.id.slice(0, 8).toUpperCase()}</span></td><td><RoomStatus open={room.is_open} /></td><td className="rooms-item-date">{updated(room)}</td><td>{controls(room)}</td></tr>)}
           </tbody></table></div>}
       </section>
+      <CloseRoomDialog open={closingRoom !== null} onOpenChange={(open) => { if (!open) setClosingRoom(null); }}
+        roomName={closingRoom?.name ?? ""} pending={toggle.isPending}
+        onConfirm={async () => { if (closingRoom) await toggle.mutateAsync({ id: closingRoom.id, open: false }); }} />
     </div>
   </main>;
 }

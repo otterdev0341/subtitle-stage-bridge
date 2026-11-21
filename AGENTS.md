@@ -38,3 +38,4 @@ use the editor.
 - Room signaling uses src/lib/realtime-room.ts (Realtime heartbeat and hello/ready timers in Web Workers) so hidden director tabs stay connected.
 - Room availability is owner-controlled in rooms.is_open; invitation readers get only availability, ownership and the current open-session key via get_room_access. Rotate the signaling key on status changes, gate every broadcast start, and unmount active media when availability checks close or fail so old sessions cannot resume after reopening.
 - Profile reads must be restricted by database policy to the authenticated user's own ID; account display names are private, not a shared directory.
+- Room closing uses the shared CloseRoomDialog in both room-list views and the director page so confirmation and pending/error behavior stay consistent.
