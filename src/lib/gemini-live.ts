@@ -42,3 +42,8 @@ export function translationPrompt(source: string, target: string, glossary: stri
     .filter(Boolean)
     .join("\n");
 }
+
+/** Swap spoken and target languages, keeping everything else (glossary) intact. */
+export function swapLanguages<T extends { source: string; target: string }>(settings: T): T {
+  return { ...settings, source: settings.target, target: settings.source };
+}

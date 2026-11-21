@@ -12,6 +12,7 @@ import { SOURCES, sourceTitle, emptyStreams, type SourceId } from "@/lib/sources
 import { roomInviteUrl, roomPath, type RoomLinkView } from "@/lib/room-links";
 import {
   ASPECT_PRESETS,
+  ASPECT_GROUPS,
   TRANSITIONS,
   BUILT_IN_TEMPLATES,
   HOLD_KEY,
@@ -286,7 +287,9 @@ export function ControlRoom({ roomId }: { roomId: string }) {
             <TabsTrigger value="live">Live</TabsTrigger>
             <TabsTrigger value="links">ลิงก์</TabsTrigger>
             <TabsTrigger value="sources">แหล่งภาพ</TabsTrigger>
-            <TabsTrigger value="scene">จัดเวที · เทมเพลต · พักจอ</TabsTrigger>
+            <TabsTrigger value="stage">จัดเวที</TabsTrigger>
+            <TabsTrigger value="templates">เทมเพลต</TabsTrigger>
+            <TabsTrigger value="hold">พักจอ</TabsTrigger>
             <TabsTrigger value="translate">แปลสด</TabsTrigger>
           </TabsList>
           <TabsContent value="live">
@@ -294,7 +297,7 @@ export function ControlRoom({ roomId }: { roomId: string }) {
               <section className="control-card">
                 <div className="control-section-heading">
                   <h2>PREVIEW · ฉากที่เตรียม</h2>
-                  <Button variant="outline" onClick={() => setTab("scene")}>
+                  <Button variant="outline" onClick={() => setTab("stage")}>
                     แก้ไขฉาก
                   </Button>
                 </div>
@@ -470,7 +473,7 @@ export function ControlRoom({ roomId }: { roomId: string }) {
                               เปิดเครื่องส่ง {s.letter}
                             </a>
                           </Button>
-                          <Button onClick={() => setTab("scene")}>จัดตำแหน่งใน Preview</Button>
+                          <Button onClick={() => setTab("stage")}>จัดตำแหน่งใน Preview</Button>
                         </div>
                       </div>
                     </div>
@@ -507,7 +510,7 @@ export function ControlRoom({ roomId }: { roomId: string }) {
               ))}
             </div>
           </TabsContent>
-          <TabsContent value="scene">
+          <TabsContent value="stage">
             <div className="control-editor-grid">
               <section className="control-card">
                 <div className="control-section-heading">
@@ -678,31 +681,27 @@ export function ControlRoom({ roomId }: { roomId: string }) {
               </aside>
             </div>
             <section className="control-card">
-              <h2>รูปแบบเวทีและเทมเพลต</h2>
+              <h2>ความละเอียดและการจัดวาง</h2>
               <div className="control-form-row">
-                <label>
-                  ขนาดเวที
-                  <select
-                    value={`${draft.aspect.w}:${draft.aspect.h}`}
-                    onChange={(e) => {
-                      const [w, h] = e.target.value.split(":").map(Number);
-                      setDraft((current) => ({ ...current, aspect: { w: w!, h: h! } }));
-                    }}
-                  >
-                    {!ASPECT_PRESETS.some(
-                      (p) => p.w === draft.aspect.w && p.h === draft.aspect.h,
-                    ) && (
-                      <option value={`${draft.aspect.w}:${draft.aspect.h}`}>
-                        กำหนดเอง · {draft.aspect.w}×{draft.aspect.h}
-                      </option>
-                    )}
-                    {ASPECT_PRESETS.map((p) => (
-                      <option key={p.label} value={`${p.w}:${p.h}`}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className="control-res-presets" role="group" aria-label="ความละเอียดเวที">
+                  {ASPECT_GROUPS.map((g) => (
+                    <div key={g} className="control-res-group">
+                      <small>{g}</small>
+                      <div>
+                        {ASPECT_PRESETS.filter((p) => p.group === g).map((p) => (
+                          <button
+                            key={p.label}
+                            type="button"
+                            className={p.w === draft.aspect.w && p.h === draft.aspect.h ? "is-active" : ""}
+                            onClick={() => setDraft((current) => ({ ...current, aspect: { w: p.w, h: p.h } }))}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
                 {(["w", "h"] as const).map((axis) => (
                   <label key={axis}>
                     {axis === "w" ? "ความกว้างเวที (px)" : "ความสูงเวที (px)"}
@@ -788,6 +787,11 @@ export function ControlRoom({ roomId }: { roomId: string }) {
                   สลับ A/B
                 </label>
               </div>
+            </section>
+          </TabsContent>
+          <TabsContent value="templates">
+            <section className="control-card">
+              <h2>เทมเพลต</h2>
               <div className="control-template-grid">
                 {allTemplates.map((t) => (
                   <div key={t.id}>
@@ -860,6 +864,8 @@ export function ControlRoom({ roomId }: { roomId: string }) {
                 ))}
               </div>
             </section>
+          </TabsContent>
+          <TabsContent value="hold">
             <section className="control-card">
               <h2>เตรียมพักจอ · ใช้หลัง TAKE</h2>
               <div className="control-form-row">

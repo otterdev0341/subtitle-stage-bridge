@@ -71,11 +71,17 @@ export type StageTemplate = {
 };
 
 export const MIN_SIZE = 8;
-export const ASPECT_PRESETS = [
-  { label: "16:9 · 1920×1080", w: 1920, h: 1080 },
-  { label: "16:10 · 1920×1200", w: 1920, h: 1200 },
-  { label: "4:3 · 1440×1080", w: 1440, h: 1080 },
-  { label: "21:9 · 2560×1080", w: 2560, h: 1080 },
+export const ASPECT_GROUPS = ["แนวนอน", "อื่น ๆ", "แนวตั้ง / สี่เหลี่ยม"] as const;
+export const ASPECT_PRESETS: Array<{ label: string; w: number; h: number; group: (typeof ASPECT_GROUPS)[number] }> = [
+  { label: "720p · 1280×720", w: 1280, h: 720, group: "แนวนอน" },
+  { label: "1080p · 1920×1080", w: 1920, h: 1080, group: "แนวนอน" },
+  { label: "1440p · 2560×1440", w: 2560, h: 1440, group: "แนวนอน" },
+  { label: "4K · 3840×2160", w: 3840, h: 2160, group: "แนวนอน" },
+  { label: "16:10 · 1920×1200", w: 1920, h: 1200, group: "อื่น ๆ" },
+  { label: "4:3 · 1440×1080", w: 1440, h: 1080, group: "อื่น ๆ" },
+  { label: "21:9 · 2560×1080", w: 2560, h: 1080, group: "อื่น ๆ" },
+  { label: "9:16 · 1080×1920", w: 1080, h: 1920, group: "แนวตั้ง / สี่เหลี่ยม" },
+  { label: "1:1 · 1080×1080", w: 1080, h: 1080, group: "แนวตั้ง / สี่เหลี่ยม" },
 ];
 
 export const DEFAULT_HOLD_TEXTS: HoldTexts = {

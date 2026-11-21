@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic, MicOff } from "lucide-react";
+import { ArrowLeftRight, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useServerFn } from "@tanstack/react-start";
 import { createGeminiLiveToken } from "@/lib/gemini-live.functions";
-import { GEMINI_LIVE_WS, LANGUAGES, translationPrompt } from "@/lib/gemini-live";
+import { GEMINI_LIVE_WS, LANGUAGES, swapLanguages, translationPrompt } from "@/lib/gemini-live";
 import type { TranslationSettings } from "@/lib/account-sync";
 
 const WORKLET = `class P extends AudioWorkletProcessor{constructor(){super();this.b=[];this.n=0}
@@ -113,8 +113,9 @@ export function GeminiDock({
         ws.current = null;
         if (running.current) {
           // Sessions are time-limited; reconnect quietly while still running.
-          if (ev.code !== 1000 && ev.reason) setError(ev.reason);
-          window.setTimeout(() => void connect(), 800);
+          if (ev.code !== 1000 && ev.code !== 4000 && ev.reason) setError(ev.reason);
+          else setError("");
+          window.setTimeout(() => void connectRef.current(), ev.code === 4000 ? 50 : 800);
         }
       };
     } catch (e) {
@@ -123,6 +124,9 @@ export function GeminiDock({
       running.current = false;
     }
   }, [getToken, settings, flush]);
+
+  const connectRef = useRef(connect);
+  connectRef.current = connect;
 
   const start = async () => {
     setError("");
@@ -162,15 +166,40 @@ export function GeminiDock({
   useEffect(() => stop, [stop]);
 
   const live = status === "live" || status === "connecting";
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const swap = useCallback(() => {
+    onSettings(swapLanguages(settingsRef.current));
+    // While live, drop the session; onclose reconnects with the new languages.
+    if (running.current) {
+      flush(true);
+      ws.current?.close(4000, "swap");
+    }
+  }, [onSettings, flush]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if ((e.key === "s" || e.key === "S") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        swap();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [swap]);
   return (
     <section className="control-gemini" aria-label="แปลสด">
-      <div className="control-form-row">
+      <div className="control-lang-row">
         <label>
           ภาษาที่พูด
           <select disabled={live} value={settings.source} onChange={(e) => onSettings({ ...settings, source: e.target.value })}>
             {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
           </select>
         </label>
+        <button type="button" className="control-lang-swap" onClick={swap} aria-label="สลับภาษา (S)" title="สลับภาษา (S)">
+          <ArrowLeftRight size={18} />
+        </button>
         <label>
           แปลเป็น
           <select disabled={live} value={settings.target} onChange={(e) => onSettings({ ...settings, target: e.target.value })}>

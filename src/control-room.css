@@ -1050,3 +1050,21 @@
 .control-gemini-status.is-live { color: var(--primary); font-weight: 700; }
 .control-gemini-live { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .control-gemini-live small { display: block; font-size: 11px; color: var(--muted-foreground); }
+
+.control-lang-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: end; margin-bottom: 12px; }
+.control-lang-row label { display: grid; gap: 4px; }
+.control-lang-swap {
+  height: 38px; width: 38px; display: grid; place-items: center; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--card); color: var(--foreground); cursor: pointer;
+  transition: transform .2s, border-color .2s;
+}
+.control-lang-swap:hover { border-color: var(--primary); transform: rotate(180deg); }
+.control-res-presets { display: grid; gap: 10px; grid-column: 1 / -1; width: 100%; }
+.control-res-group small { display: block; color: var(--muted-foreground); margin-bottom: 4px; }
+.control-res-group > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.control-res-group button {
+  padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card);
+  color: var(--foreground); font-size: 13px; cursor: pointer;
+}
+.control-res-group button:hover { border-color: var(--primary); }
+.control-res-group button.is-active { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
