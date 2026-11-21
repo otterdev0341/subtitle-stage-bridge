@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import "@/control-room.css";
+import "@/station.css";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Check,
@@ -96,6 +97,7 @@ function BroadcastRoom() {
 export function RemoteStation({ roomId, role }: { roomId: string; role: SourceId }) {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [starting, setStarting] = useState(false);
+  const [senderError, setSenderError] = useState("");
   const [copied, setCopied] = useState(false);
   const { connected, participants, error, start, stop } = useBroadcastSession(roomId);
   const pipelineRef = useRef<CropPipeline | null>(null);
@@ -155,6 +157,7 @@ export function RemoteStation({ roomId, role }: { roomId: string; role: SourceId
 
   const startSharing = async () => {
     setStarting(true);
+    setSenderError("");
     try {
       const nextStream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: 30 },
@@ -185,7 +188,7 @@ export function RemoteStation({ roomId, role }: { roomId: string; role: SourceId
       }
     } catch (shareError) {
       if (shareError instanceof Error && shareError.name !== "NotAllowedError") {
-        window.alert("เปิดแชร์จอไม่สำเร็จ กรุณาอนุญาตการแชร์หน้าจอแล้วลองอีกครั้ง");
+        setSenderError("เปิดแชร์จอไม่สำเร็จ กรุณาอนุญาตการแชร์หน้าจอแล้วลองอีกครั้ง");
       }
     } finally {
       setStarting(false);
@@ -195,6 +198,7 @@ export function RemoteStation({ roomId, role }: { roomId: string; role: SourceId
   const applySendingCrop = async () => {
     if (!stream) return;
     setStarting(true);
+    setSenderError("");
     try {
       changeCrop(normalizeCrop(draftCrop), draftShape);
       if (!sending) {
@@ -208,7 +212,7 @@ export function RemoteStation({ roomId, role }: { roomId: string; role: SourceId
     } catch {
       pipelineRef.current?.stop();
       pipelineRef.current = null;
-      window.alert("เริ่มส่งภาพไม่สำเร็จ กรุณาลองอีกครั้ง");
+      setSenderError("เริ่มส่งภาพไม่สำเร็จ กรุณาลองอีกครั้ง");
     } finally {
       setStarting(false);
     }
@@ -230,137 +234,77 @@ export function RemoteStation({ roomId, role }: { roomId: string; role: SourceId
     window.setTimeout(() => setCopied(false), 1600);
   };
 
+  const step = !stream ? 1 : editingCrop ? 2 : 3;
   return (
-    <main className={`relay-station relay-station-${role}`}>
+    <main className={`relay-station relay-station-${role} sender-page`}>
       <header className="relay-station-header">
-        <Link to="/" className="relay-brand relay-brand-inverse" aria-label="กลับหน้าหลัก">
-          <span className="relay-brand-mark">
-            <RadioTower size={18} />
-          </span>
-          <span>
-            live<span className="relay-brand-light">{" relay"}</span>
-          </span>
+        <Link to="/rooms" className="relay-brand" aria-label="กลับห้องของฉัน">
+          <span className="relay-brand-mark"><RadioTower size={18} /></span>
+          <span>live<span className="relay-brand-light">{" relay"}</span></span>
         </Link>
-        <div className="relay-station-status">
-          <span className={connected ? "relay-live-dot" : "relay-status-wait"} />{" "}
-          {connected ? "เชื่อมต่อห้องแล้ว" : "เตรียมอุปกรณ์"}
-        </div>
+        <span className="sender-room">ห้อง {roomId.slice(0, 8).toUpperCase()}</span>
       </header>
       <div className="relay-station-content">
-        <>
-          <div className="relay-station-kicker">
-            <FileVideo2 size={15} /> SCREEN {sourceInfo(role).letter} INPUT
-          </div>
-          <h1 className="relay-station-title">
-            จอ {sourceInfo(role).letter}
-            <br />
-            <em>พร้อมส่งภาพ</em>
-          </h1>
-          {stream && editingCrop && (
-            <>
-              <SenderCropper
-                stream={stream}
-                crop={draftCrop}
-                shape={draftShape}
-                paused={paused}
-                outSize={outSize}
-                onChange={(c, s) => {
-                  setDraftCrop(c);
-                  setDraftShape(s);
-                }}
-                onPause={changePaused}
-                showPause={false}
-                previewLabel="ตัวอย่างพื้นที่ที่เลือก (ยังไม่ใช้จนกดยืนยัน)"
-              />
-              <div className="relay-station-actions">
-                <Button disabled={starting} onClick={() => void applySendingCrop()}>
-                  {sending ? "ใช้พื้นที่นี้" : "เริ่มส่งภาพเฉพาะส่วนนี้"}
-                </Button>
-                {sending && (
-                  <Button variant="outline" onClick={() => setEditingCrop(false)}>
-                    ยกเลิก
-                  </Button>
-                )}
-              </div>
-            </>
-          )}
-          {stream && sending && !editingCrop && (
-            <div className="relay-send-status">
-              <p>
-                {paused
-                  ? "หยุดส่งชั่วคราว — ปลายทางเห็นจอดำ"
-                  : `กำลังส่ง ${outSize.w}×${outSize.h} · เฉพาะส่วนที่เลือก`}
-              </p>
-              {pipelineRef.current && (
-                <div
-                  className="relay-crop-output"
-                  style={{ aspectRatio: `${outSize.w || 16} / ${outSize.h || 9}` }}
-                >
-                  <CroppedVideo stream={pipelineRef.current.stream} />
-                </div>
-              )}
-              <Button
-                onClick={() => {
-                  setDraftCrop(crop);
-                  setDraftShape(shape);
-                  setEditingCrop(true);
-                }}
-              >
-                ปรับพื้นที่ส่ง
-              </Button>
-              <Button variant="outline" onClick={() => changePaused(!paused)}>
-                {paused ? "ส่งต่อ" : "หยุดส่งชั่วคราว"}
-              </Button>
-            </div>
-          )}
-          <div className="relay-presentation-preview" hidden={Boolean(stream)}>
-            {stream ? null : (
-              <div className="relay-presentation-placeholder">
-                <MonitorUp size={38} />
-                <span>แชร์ทั้งหน้าจอ หน้าต่าง หรือแท็บใดก็ได้</span>
-              </div>
-            )}
-          </div>
-          <div className="relay-station-actions">
-            <Button
-              className="relay-stage-button"
-              disabled={starting}
-              onClick={stream ? stopSharing : startSharing}
-            >
-              {starting ? (
-                <LoaderCircle className="relay-spin" size={17} />
-              ) : stream ? (
-                <CircleStop size={17} />
-              ) : (
-                <MonitorUp size={17} />
-              )}
-              {starting ? "กำลังเชื่อมต่อ" : stream ? "หยุดแชร์หน้าจอ" : "เลือกจอที่จะแชร์"}
+        <div className="sender-heading">
+          <div><div className="sender-eyebrow"><FileVideo2 size={16} /> จอ {sourceInfo(role).letter}</div>
+            <h1>แชร์ภาพเข้าห้อง</h1></div>
+          <span className={`sender-state${sending && !paused ? " is-live" : ""}`} role="status">
+            <span className={sending && !paused ? "relay-live-dot" : "relay-status-wait"} />
+            {sending ? paused ? "พักการส่งภาพ" : "กำลังส่งภาพ" : stream ? "ยังไม่ส่งภาพ" : "ยังไม่ได้เลือกจอ"}
+          </span>
+        </div>
+        <ol className="sender-steps" aria-label="สถานะการแชร์ภาพ">
+          {["เลือกจอ", "เลือกพื้นที่", "ส่งภาพ"].map((label, index) => <li key={label}
+            className={step === index + 1 ? "is-current" : step > index + 1 ? "is-complete" : ""}
+            aria-current={step === index + 1 ? "step" : undefined}>
+            <span>{step > index + 1 ? <Check size={14} /> : index + 1}</span>{label}
+          </li>)}
+        </ol>
+        {!stream && <div className="sender-empty">
+          <MonitorUp size={48} />
+          <h2>ภาพจากเครื่องนี้</h2>
+          <div className="sender-source-types"><span>หน้าจอ</span><span>หน้าต่าง</span><span>แท็บ</span></div>
+          <Button size="lg" disabled={starting} onClick={() => void startSharing()}>
+            {starting ? <LoaderCircle className="relay-spin" size={18} /> : <MonitorUp size={18} />}
+            {starting ? "กำลังเปิดหน้าจอ…" : "เลือกจอที่จะแชร์"}
+          </Button>
+        </div>}
+        {stream && editingCrop && <>
+          {sending && <div className="sender-edit-notice">กำลังปรับพื้นที่ · ภาพเดิมยังส่งอยู่</div>}
+          <SenderCropper stream={stream} crop={draftCrop} shape={draftShape} paused={paused} outSize={outSize}
+            onChange={(c, s) => { setDraftCrop(c); setDraftShape(s); }} onPause={changePaused}
+            showPause={false} previewLabel="ภาพที่จะส่ง" />
+          <div className="sender-action-bar">
+            <span className="sender-action-status">{sending ? "รอยืนยันพื้นที่ใหม่" : "ยังไม่มีภาพส่งออก"}</span>
+            <div><Button disabled={starting} onClick={() => void applySendingCrop()}>
+              {starting ? <LoaderCircle className="relay-spin" size={16} /> : <Share2 size={16} />}
+              {sending ? "ใช้พื้นที่นี้" : "เริ่มส่งภาพเฉพาะส่วนนี้"}
             </Button>
-            <Button
-              variant="outline"
-              className="relay-copy-invite"
-              onClick={() => void copyInvite()}
-            >
-              {copied ? <Check size={16} /> : <Share2 size={16} />}{" "}
-              {copied ? "คัดลอกแล้ว" : "คัดลอกลิงก์เข้าห้อง"}
-            </Button>
+            {sending && <Button disabled={starting} variant="outline" onClick={() => setEditingCrop(false)}>ยกเลิก</Button>}</div>
           </div>
-          <p className="relay-station-footnote">
-            เลือกทั้งหน้าจอหรือเฉพาะหน้าต่างที่ต้องการ จากนั้นคงแท็บนี้ไว้ระหว่างการนำเสนอ
-          </p>
-          <StationConnections
-            connected={connected}
-            participants={participants.length}
-            error={error}
-          />
-        </>
+        </>}
+        {stream && sending && !editingCrop && <section className="sender-live-preview">
+          <div className="sender-preview-heading"><h2>ภาพที่ส่งเข้าห้อง</h2><span>{outSize.w || "…"} × {outSize.h || "…"}</span></div>
+          {pipelineRef.current && <div className="relay-crop-output" style={{ aspectRatio: `${outSize.w || 16} / ${outSize.h || 9}` }}>
+            <CroppedVideo stream={pipelineRef.current.stream} />
+          </div>}
+          {paused && <p className="sender-edit-notice">พักการส่งภาพ · ปลายทางเห็นจอดำ</p>}
+          <div className="sender-action-bar"><span className="sender-action-status">{connected ? "เชื่อมต่อห้องแล้ว" : "กำลังเชื่อมต่อห้อง…"}</span><div>
+            <Button variant="outline" onClick={() => { setDraftCrop(crop); setDraftShape(shape); setEditingCrop(true); }}>ปรับพื้นที่ส่ง</Button>
+            <Button variant={paused ? "default" : "outline"} onClick={() => changePaused(!paused)}>{paused ? "ส่งต่อ" : "หยุดส่งชั่วคราว"}</Button>
+          </div></div>
+        </section>}
+        {senderError && <p className="sender-error" role="alert">{senderError}</p>}
+        <div className="sender-bottom-bar">
+          <StationConnections connected={connected} participants={participants.length} error={error} />
+          <div>{stream && <Button variant="destructive" disabled={starting} onClick={stopSharing}><CircleStop size={16} />หยุดแชร์หน้าจอ</Button>}
+            <Button variant="ghost" size="icon" title={copied ? "คัดลอกแล้ว" : "คัดลอกลิงก์เข้าห้อง"}
+              aria-label={copied ? "คัดลอกแล้ว" : "คัดลอกลิงก์เข้าห้อง"} onClick={() => void copyInvite()}>
+              {copied ? <Check size={16} /> : <Share2 size={16} />}
+            </Button></div>
+        </div>
       </div>
-      <footer className="relay-station-footer">
-        <span>
-          ROOM <b>{roomId.slice(0, 8).toUpperCase()}</b>
-        </span>
-        <span>PEER-TO-PEER BROADCAST</span>
-      </footer>
+      <footer className="relay-station-footer"><span>จอ {sourceInfo(role).letter}</span><span>LIVE RELAY</span></footer>
     </main>
   );
 }

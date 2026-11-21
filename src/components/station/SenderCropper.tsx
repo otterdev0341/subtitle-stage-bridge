@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play } from "lucide-react";
+import { Pause, Play, SquareDashedMousePointer } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { CroppedVideo } from "@/components/stage/CroppedVideo";
 import { CROP_SHAPES, FULL_CROP, fitAspect, normalizeCrop, resizeCrop, type CropRect, type CropShape } from "@/lib/screen-crop";
 
@@ -51,9 +52,12 @@ export function SenderCropper({ stream, crop, shape, paused, outSize, onChange, 
 
   return (
     <div className="relay-cropper">
-      <p>ลากกรอบเพื่อเลือกพื้นที่ · ลากกลางกรอบเพื่อย้าย · ลากมุมเพื่อปรับขนาด</p>
-      <button type="button" className={`relay-cropper-chip${drawing ? " is-active" : ""}`} onClick={() => setDrawing(!drawing)}>วาดกรอบใหม่</button>
-      <div ref={boxRef} className="relay-cropper-stage" style={{ aspectRatio: `${dims.w} / ${dims.h}`, width: `min(100%, ${60 * dims.w / dims.h}vh)`, cursor: drawing ? "crosshair" : undefined }}
+      <div className="sender-crop-original">
+      <div className="sender-preview-heading"><h2>ภาพต้นฉบับ</h2>
+        <Button type="button" variant="outline" size="icon" title="วาดกรอบใหม่" aria-label="วาดกรอบใหม่" aria-pressed={drawing}
+          className={`relay-cropper-chip${drawing ? " is-active" : ""}`} onClick={() => setDrawing(!drawing)}><SquareDashedMousePointer size={16} /></Button>
+      </div>
+      <div ref={boxRef} className="relay-cropper-stage" style={{ aspectRatio: `${dims.w} / ${dims.h}`, cursor: drawing ? "crosshair" : undefined }}
         onPointerDown={e => {
           if (!drawing && e.target !== e.currentTarget) return;
           const box = e.currentTarget.getBoundingClientRect();
@@ -68,14 +72,17 @@ export function SenderCropper({ stream, crop, shape, paused, outSize, onChange, 
       </div>
       <div className="relay-cropper-tools">
         <div className="relay-cropper-shapes" role="group" aria-label="รูปทรงพื้นที่ส่ง">
-          {CROP_SHAPES.map((s) => <button key={s.id} type="button" className={`relay-cropper-chip${shape === s.id ? " is-active" : ""}`} onClick={() => pick(s.id)}>{s.label}</button>)}
-          <button type="button" className="relay-cropper-chip" onClick={() => { setDrawing(false); onChange({ x: 0, y: 75, w: 100, h: 25 }, "free"); }}>แถบคำบรรยาย</button>
+          {CROP_SHAPES.map((s) => <Button key={s.id} type="button" variant="outline" aria-pressed={shape === s.id} className={`relay-cropper-chip${shape === s.id ? " is-active" : ""}`} onClick={() => pick(s.id)}>{s.label}</Button>)}
+          <Button type="button" variant="outline" className="relay-cropper-chip" onClick={() => { setDrawing(false); onChange({ x: 0, y: 75, w: 100, h: 25 }, "free"); }}>แถบคำบรรยาย</Button>
         </div>
-        {showPause && <button type="button" className={`relay-cropper-chip relay-cropper-pause${paused ? " is-active" : ""}`} onClick={() => onPause(!paused)}>{paused ? <><Play size={13} /> ส่งต่อ</> : <><Pause size={13} /> หยุดส่งชั่วคราว</>}</button>}
+        {showPause && <Button type="button" variant="outline" className={`relay-cropper-chip relay-cropper-pause${paused ? " is-active" : ""}`} onClick={() => onPause(!paused)}>{paused ? <><Play size={13} /> ส่งต่อ</> : <><Pause size={13} /> หยุดส่งชั่วคราว</>}</Button>}
       </div>
-      <p className="relay-cropper-status">{previewLabel} · {isFull ? "เต็มจอ" : "บางส่วนของจอ"}</p>
+      </div>
+      <div className="sender-crop-result">
+      <div className="sender-preview-heading"><h2>{previewLabel}</h2><span>{isFull ? "เต็มจอ" : "เฉพาะพื้นที่เลือก"}</span></div>
       <div className="relay-crop-output" style={{ aspectRatio: `${dims.w * crop.w} / ${dims.h * crop.h}` }}><CroppedVideo stream={stream} crop={crop} /></div>
       {showPause && <p className="relay-cropper-status">{paused ? "หยุดส่งภาพอยู่ — ห้องควบคุมเห็นจอดำ" : `กำลังส่ง ${outSize.w || "…"}×${outSize.h || "…"}`}</p>}
+      </div>
     </div>
   );
 }

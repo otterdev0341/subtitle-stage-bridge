@@ -39,3 +39,6 @@ use the editor.
 - Room availability is owner-controlled in rooms.is_open; invitation readers get only availability, ownership and the current open-session key via get_room_access. Rotate the signaling key on status changes, gate every broadcast start, and unmount active media when availability checks close or fail so old sessions cannot resume after reopening.
 - Profile reads must be restricted by database policy to the authenticated user's own ID; account display names are private, not a shared directory.
 - Room closing uses the shared CloseRoomDialog in both room-list views and the director page so confirmation and pending/error behavior stay consistent.
+- Gemini Live connection lifecycle is managed by GeminiSession with in-memory resumption, bounded retries and setup-gated audio; keep microphone capture mounted during transport handovers and release it on Stop or terminal failure.
+- Keep the translation tab force-mounted and hidden when inactive so switching director tabs does not stop the microphone or lose the live interpretation session.
+- Sender presentation styles are scoped by sender-page in station.css so preparation, crop preview and live states do not alter director or presenter styling.

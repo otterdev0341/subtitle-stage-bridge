@@ -1,5 +1,8 @@
 # Live subtitle broadcast
 
+- [x] Stabilize Gemini Live audio startup, reconnection and session continuity; verified real microphone translation, forced-disconnect recovery, tab switching and Stop.
+- [x] Simplify the screen-sharing page with preparation, crop confirmation and live states; sender flow and desktop/mobile previews verified. Headless receiver video remained blank, so cross-device picture delivery remains unverified.
+
 - [x] Replace native room-close confirmations with a shared modal and verify cancellation and closing while signed in.
 
 - [x] Add owner-controlled room open/close and status lights; stop existing shares and block closed-room invitations.

@@ -3,7 +3,8 @@ import { ArrowLeftRight, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useServerFn } from "@tanstack/react-start";
 import { createGeminiLiveToken } from "@/lib/gemini-live.functions";
-import { GEMINI_LIVE_WS, LANGUAGES, swapLanguages, translationPrompt } from "@/lib/gemini-live";
+import { LANGUAGES, swapLanguages, translationPrompt } from "@/lib/gemini-live";
+import { GeminiSession, type GeminiStatus } from "@/lib/gemini-session";
 import type { TranslationSettings } from "@/lib/account-sync";
 
 const WORKLET = `class P extends AudioWorkletProcessor{constructor(){super();this.b=[];this.n=0}
@@ -23,7 +24,7 @@ function toBase64Pcm(input: Float32Array): string {
   return btoa(bin);
 }
 
-type Status = "idle" | "connecting" | "live" | "error";
+
 
 /**
  * Live translation: the Control Room microphone streams to Gemini Live and the
@@ -39,13 +40,16 @@ export function GeminiDock({
   onPublish: (source: string, text: string) => void;
 }) {
   const getToken = useServerFn(createGeminiLiveToken);
-  const [status, setStatus] = useState<Status>("idle");
+  const [status, setStatus] = useState<GeminiStatus>("idle");
   const [error, setError] = useState("");
   const [heard, setHeard] = useState("");
   const [line, setLine] = useState("");
   const [glossary, setGlossary] = useState(settings.glossary);
   const running = useRef(false);
-  const ws = useRef<WebSocket | null>(null);
+  const session = useRef<GeminiSession | null>(null);
+  const startEpoch = useRef(0);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   const audio = useRef<{ ctx: AudioContext; stream: MediaStream } | null>(null);
   const buf = useRef({ src: "", out: "", last: 0 });
   const publishRef = useRef(onPublish);
@@ -65,115 +69,101 @@ export function GeminiDock({
     }
   }, []);
 
-  const connect = useCallback(async () => {
-    if (!running.current) return;
-    setStatus("connecting");
-    try {
-      const { token, model } = await getToken();
-      const socket = new WebSocket(`${GEMINI_LIVE_WS}?access_token=${encodeURIComponent(token)}`);
-      ws.current = socket;
-      socket.onopen = () =>
-        socket.send(
-          JSON.stringify({
-            setup: {
-              model: `models/${model}`,
-              generationConfig: { responseModalities: ["AUDIO"] },
-              systemInstruction: { parts: [{ text: translationPrompt(settings.source, settings.target, settings.glossary) }] },
-              inputAudioTranscription: {},
-              outputAudioTranscription: {},
-            },
-          }),
-        );
-      socket.onmessage = async (event) => {
-        const raw = typeof event.data === "string" ? event.data : await (event.data as Blob).text();
-        const msg = JSON.parse(raw) as {
-          setupComplete?: unknown;
-          serverContent?: {
-            inputTranscription?: { text?: string };
-            outputTranscription?: { text?: string };
-            turnComplete?: boolean;
-          };
-        };
-        if (msg.setupComplete) setStatus("live");
-        const sc = msg.serverContent;
-        if (!sc) return;
-        if (sc.inputTranscription?.text) {
-          buf.current.src += sc.inputTranscription.text;
-          setHeard(buf.current.src);
-        }
-        if (sc.outputTranscription?.text) {
-          buf.current.out += sc.outputTranscription.text;
-          setLine(buf.current.out);
-          flush(false);
-        }
-        if (sc.turnComplete) flush(true);
-      };
-      socket.onclose = (ev) => {
-        if (ws.current !== socket) return;
-        ws.current = null;
-        if (running.current) {
-          // Sessions are time-limited; reconnect quietly while still running.
-          if (ev.code !== 1000 && ev.code !== 4000 && ev.reason) setError(ev.reason);
-          else setError("");
-          window.setTimeout(() => void connectRef.current(), ev.code === 4000 ? 50 : 800);
-        }
-      };
-    } catch (e) {
-      setStatus("error");
-      setError(e instanceof Error ? e.message : "เชื่อมต่อ Gemini ไม่สำเร็จ");
-      running.current = false;
-    }
-  }, [getToken, settings, flush]);
+  const releaseMicrophone = useCallback(() => {
+    audio.current?.stream.getTracks().forEach((track) => track.stop());
+    void audio.current?.ctx.close();
+    audio.current = null;
+  }, []);
 
-  const connectRef = useRef(connect);
-  connectRef.current = connect;
+  const stop = useCallback(() => {
+    running.current = false;
+    startEpoch.current++;
+    session.current?.stop();
+    session.current = null;
+    releaseMicrophone();
+    flush(true);
+    setError("");
+    setStatus("idle");
+  }, [releaseMicrophone, flush]);
+  useEffect(() => stop, [stop]);
 
   const start = async () => {
+    if (running.current) return;
+    running.current = true;
+    const epoch = ++startEpoch.current;
+    setStatus("connecting");
     setError("");
+    let stream: MediaStream | undefined;
+    let ctx: AudioContext | undefined;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
       });
-      const ctx = new AudioContext({ sampleRate: 16000 });
-      const url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
-      await ctx.audioWorklet.addModule(url);
-      URL.revokeObjectURL(url);
-      const node = new AudioWorkletNode(ctx, "pcm-capture");
-      node.port.onmessage = (e: MessageEvent<Float32Array>) => {
-        const socket = ws.current;
-        if (socket?.readyState === WebSocket.OPEN)
-          socket.send(JSON.stringify({ realtimeInput: { audio: { data: toBase64Pcm(e.data), mimeType: "audio/pcm;rate=16000" } } }));
-      };
-      ctx.createMediaStreamSource(stream).connect(node);
+      if (!running.current || epoch !== startEpoch.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      ctx = new AudioContext({ sampleRate: 16000 });
       audio.current = { ctx, stream };
-      running.current = true;
-      await connect();
+      const url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
+      try { await ctx.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
+      if (!running.current || epoch !== startEpoch.current) return;
+      const node = new AudioWorkletNode(ctx, "pcm-capture");
+      // A silent destination keeps the worklet processing without microphone feedback.
+      const silent = ctx.createGain();
+      silent.gain.value = 0;
+      ctx.createMediaStreamSource(stream).connect(node);
+      node.connect(silent).connect(ctx.destination);
+      await ctx.resume();
+      if (!running.current || epoch !== startEpoch.current) return;
+      const liveSession = new GeminiSession({
+        getToken,
+        prompt: () => translationPrompt(settingsRef.current.source, settingsRef.current.target, settingsRef.current.glossary),
+        onState: (next, message) => { setStatus(next); setError(message); },
+        onFatal: () => { running.current = false; releaseMicrophone(); flush(true); },
+        onMessage: (msg) => {
+          const sc = msg.serverContent;
+          if (!sc) return;
+          if (sc.inputTranscription?.text) {
+            buf.current.src += sc.inputTranscription.text;
+            setHeard(buf.current.src);
+          }
+          if (sc.outputTranscription?.text) {
+            buf.current.out += sc.outputTranscription.text;
+            setLine(buf.current.out);
+            flush(false);
+          }
+          if (sc.turnComplete) flush(true);
+        },
+      });
+      session.current = liveSession;
+      node.port.onmessage = (event: MessageEvent<Float32Array>) => liveSession.sendAudio(toBase64Pcm(event.data));
+      for (const track of stream.getAudioTracks()) track.addEventListener("ended", () => {
+        if (!running.current || epoch !== startEpoch.current) return;
+        stop();
+        setStatus("error");
+        setError("ไมโครโฟนหยุดทำงาน กรุณาเชื่อมต่อไมค์แล้วเริ่มใหม่");
+      }, { once: true });
+      liveSession.start();
     } catch {
+      stream?.getTracks().forEach((track) => track.stop());
+      if (ctx && ctx.state !== "closed") void ctx.close();
+      if (epoch !== startEpoch.current) return;
+      running.current = false;
+      audio.current = null;
       setStatus("error");
       setError("เปิดไมโครโฟนไม่สำเร็จ กรุณาอนุญาตไมค์แล้วลองใหม่");
     }
   };
-  const stop = useCallback(() => {
-    running.current = false;
-    const socket = ws.current;
-    ws.current = null;
-    socket?.close(1000);
-    audio.current?.stream.getTracks().forEach((t) => t.stop());
-    void audio.current?.ctx.close();
-    audio.current = null;
-    setStatus("idle");
-  }, []);
-  useEffect(() => stop, [stop]);
 
-  const live = status === "live" || status === "connecting";
-  const settingsRef = useRef(settings);
-  settingsRef.current = settings;
+  const live = status === "live" || status === "connecting" || status === "reconnecting";
   const swap = useCallback(() => {
-    onSettings(swapLanguages(settingsRef.current));
-    // While live, drop the session; onclose reconnects with the new languages.
+    const next = swapLanguages(settingsRef.current);
+    settingsRef.current = next;
+    onSettings(next);
     if (running.current) {
       flush(true);
-      ws.current?.close(4000, "swap");
+      session.current?.restart();
     }
   }, [onSettings, flush]);
   useEffect(() => {
@@ -197,9 +187,9 @@ export function GeminiDock({
             {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
           </select>
         </label>
-        <button type="button" className="control-lang-swap" onClick={swap} aria-label="สลับภาษา (S)" title="สลับภาษา (S)">
+        <Button type="button" variant="outline" size="icon" className="control-lang-swap" onClick={swap} aria-label="สลับภาษา (S)" title="สลับภาษา (S)">
           <ArrowLeftRight size={18} />
-        </button>
+        </Button>
         <label>
           แปลเป็น
           <select disabled={live} value={settings.target} onChange={(e) => onSettings({ ...settings, target: e.target.value })}>
@@ -229,7 +219,7 @@ export function GeminiDock({
           </Button>
         )}
         <span className={`control-gemini-status is-${status}`}>
-          {status === "live" ? "กำลังแปลสด" : status === "connecting" ? "กำลังเชื่อมต่อ…" : status === "error" ? "มีปัญหา" : "ยังไม่เริ่ม"}
+          {status === "live" ? "กำลังแปลสด" : status === "reconnecting" ? "กำลังเชื่อมต่อใหม่…" : status === "connecting" ? "กำลังเชื่อมต่อ…" : status === "error" ? "มีปัญหา" : "ยังไม่เริ่ม"}
         </span>
       </div>
       {error && <p className="control-error" role="status">{error}</p>}
