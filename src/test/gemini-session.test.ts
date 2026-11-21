@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GeminiSession } from "@/lib/gemini-session";
+import { GEMINI_TOKEN_ERRORS } from "@/lib/gemini-errors";
 
 class Socket {
   static OPEN = 1;
@@ -31,6 +32,36 @@ beforeEach(() => { vi.useFakeTimers(); Socket.instances = []; vi.stubGlobal("Web
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("Gemini Live continuity", () => {
+  it.each([GEMINI_TOKEN_ERRORS.missing, GEMINI_TOKEN_ERRORS.access, GEMINI_TOKEN_ERRORS.quota])("does not retry terminal token failure: %s", async (message) => {
+    const { session, options } = fixture();
+    options.getToken.mockRejectedValue(new Error(message));
+    session.start();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(options.getToken).toHaveBeenCalledTimes(1);
+    expect(options.onFatal).toHaveBeenCalledTimes(1);
+    expect(Socket.instances).toHaveLength(0);
+  });
+  it("recovers from a stalled token request without accepting its late result", async () => {
+    const { session, options } = fixture();
+    let complete: ((value: { token: string; model: string }) => void) | undefined;
+    options.getToken.mockImplementationOnce(() => new Promise((resolve) => { complete = resolve; }));
+    session.start();
+    await vi.advanceTimersByTimeAsync(21000);
+    expect(Socket.instances).toHaveLength(1);
+    complete?.({ token: "test-late-authorization", model: "test-model" });
+    await Promise.resolve();
+    expect(Socket.instances).toHaveLength(1);
+  });
+  it("recovers if sending audio races with a disconnected socket", async () => {
+    const { session, options } = fixture();
+    session.start(); await Promise.resolve();
+    await socket().message({ setupComplete: {} });
+    socket().send.mockImplementationOnce(() => { throw new Error("Socket unavailable"); });
+    expect(() => session.sendAudio("pcm-frame")).not.toThrow();
+    expect(options.onState).toHaveBeenLastCalledWith("reconnecting", expect.any(String));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(Socket.instances).toHaveLength(2);
+  });
   it("sends microphone audio only after setup confirmation", async () => {
     const { session } = fixture();
     session.start(); await Promise.resolve();

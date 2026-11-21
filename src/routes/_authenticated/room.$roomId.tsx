@@ -90,7 +90,7 @@ function BroadcastRoom() {
     </div>}
     <CloseRoomDialog open={confirmClose} onOpenChange={setConfirmClose} pending={toggle.isPending}
       onConfirm={() => toggle.mutateAsync(false)} />
-    {isSourceId(view) ? <RemoteStation roomId={roomId} role={view} /> : director ? <ControlRoom roomId={roomId} /> : <OutputRoom roomId={roomId} presenter={view === "presenter"} />}
+    {isSourceId(view) ? <RemoteStation key={`${roomId}-${view}`} roomId={roomId} role={view} /> : director ? <ControlRoom key={roomId} roomId={roomId} /> : <OutputRoom key={`${roomId}-${view}`} roomId={roomId} presenter={view === "presenter"} />}
   </div>;
 }
 
@@ -206,12 +206,17 @@ export function RemoteStation({ roomId, role }: { roomId: string; role: SourceId
         pipeline.paused = paused;
         pipelineRef.current = pipeline;
         await start(role, pipeline.stream);
+        if (!mounted.current || rawStreamRef.current !== stream || pipelineRef.current !== pipeline) {
+          pipeline.stop();
+          return;
+        }
         setSending(true);
       }
       setEditingCrop(false);
     } catch {
       pipelineRef.current?.stop();
       pipelineRef.current = null;
+      setSending(false);
       setSenderError("เริ่มส่งภาพไม่สำเร็จ กรุณาลองอีกครั้ง");
     } finally {
       setStarting(false);
@@ -229,9 +234,13 @@ export function RemoteStation({ roomId, role }: { roomId: string; role: SourceId
   };
 
   const copyInvite = async () => {
-    await navigator.clipboard.writeText(roomInviteUrl(window.location.origin, roomId, role));
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1600);
+    try {
+      await navigator.clipboard.writeText(roomInviteUrl(window.location.origin, roomId, role));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setSenderError("คัดลอกลิงก์ไม่สำเร็จ กรุณาคัดลอกจากแถบที่อยู่ของหน้านี้");
+    }
   };
 
   const step = !stream ? 1 : editingCrop ? 2 : 3;

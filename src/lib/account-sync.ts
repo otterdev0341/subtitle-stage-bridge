@@ -76,6 +76,7 @@ export function useRoomSync(roomId: string) {
     })();
     return () => {
       alive = false;
+      window.clearTimeout(timer.current);
     };
   }, [roomId]);
 

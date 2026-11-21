@@ -416,7 +416,7 @@ export function ControlRoom({ roomId }: { roomId: string }) {
             <section className="control-card">
               <h2>แปลสดด้วย Gemini Live</h2>
               <p className="control-muted">ใช้ไมค์ของเครื่องนี้ คำแปลขึ้นเป็นซับบน Program ทันที ปรับขนาดหรือซ่อนซับได้ในแท็บ Live</p>
-              <GeminiDock settings={sync.translation} onSettings={sync.saveTranslation} onPublish={publish} />
+              <GeminiDock ready={sync.ready} active={tab === "translate"} settings={sync.translation} onSettings={sync.saveTranslation} onPublish={publish} />
             </section>
           </TabsContent>
           <TabsContent value="sources">

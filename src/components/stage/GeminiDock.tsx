@@ -34,10 +34,14 @@ export function GeminiDock({
   settings,
   onSettings,
   onPublish,
+  active = true,
+  ready = true,
 }: {
   settings: TranslationSettings;
   onSettings: (next: TranslationSettings) => void;
   onPublish: (source: string, text: string) => void;
+  active?: boolean;
+  ready?: boolean;
 }) {
   const getToken = useServerFn(createGeminiLiveToken);
   const [status, setStatus] = useState<GeminiStatus>("idle");
@@ -88,7 +92,7 @@ export function GeminiDock({
   useEffect(() => stop, [stop]);
 
   const start = async () => {
-    if (running.current) return;
+    if (running.current || !ready) return;
     running.current = true;
     const epoch = ++startEpoch.current;
     setStatus("connecting");
@@ -167,32 +171,33 @@ export function GeminiDock({
     }
   }, [onSettings, flush]);
   useEffect(() => {
+    if (!active || !ready) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
-      if ((e.key === "s" || e.key === "S") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if ((e.key === "s" || e.key === "S") && !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat && !e.isComposing) {
         e.preventDefault();
         swap();
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [swap]);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [swap, active, ready]);
   return (
     <section className="control-gemini" aria-label="แปลสด">
       <div className="control-lang-row">
         <label>
           ภาษาที่พูด
-          <select disabled={live} value={settings.source} onChange={(e) => onSettings({ ...settings, source: e.target.value })}>
+          <select disabled={live || !ready} value={settings.source} onChange={(e) => onSettings({ ...settings, source: e.target.value })}>
             {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
           </select>
         </label>
-        <Button type="button" variant="outline" size="icon" className="control-lang-swap" onClick={swap} aria-label="สลับภาษา (S)" title="สลับภาษา (S)">
+        <Button disabled={!ready} type="button" variant="outline" size="icon" className="control-lang-swap" onClick={swap} aria-label="สลับภาษา (S)" title="สลับภาษา (S)">
           <ArrowLeftRight size={18} />
         </Button>
         <label>
           แปลเป็น
-          <select disabled={live} value={settings.target} onChange={(e) => onSettings({ ...settings, target: e.target.value })}>
+          <select disabled={live || !ready} value={settings.target} onChange={(e) => onSettings({ ...settings, target: e.target.value })}>
             {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
           </select>
         </label>
@@ -200,7 +205,7 @@ export function GeminiDock({
       <label>
         คำศัพท์เฉพาะ (บรรทัดละคำ รูปแบบ คำ = คำแปล)
         <textarea
-          disabled={live}
+          disabled={live || !ready}
           value={glossary}
           maxLength={8000}
           onChange={(e) => setGlossary(e.target.value)}
@@ -214,7 +219,7 @@ export function GeminiDock({
             <MicOff size={16} /> หยุดแปล
           </Button>
         ) : (
-          <Button onClick={() => void start()}>
+          <Button disabled={!ready} onClick={() => void start()}>
             <Mic size={16} /> เริ่มแปลจากไมค์เครื่องนี้
           </Button>
         )}

@@ -1,4 +1,5 @@
 import { GEMINI_LIVE_WS } from "./gemini-live";
+import { GEMINI_TOKEN_ERRORS } from "./gemini-errors";
 
 export type GeminiStatus = "idle" | "connecting" | "reconnecting" | "live" | "error";
 export type GeminiMessage = {
@@ -71,7 +72,20 @@ export class GeminiSession {
       if (this.frames.length > 20) this.frames.shift();
       return;
     }
-    this.socket.send(JSON.stringify({ realtimeInput: { audio: { data, mimeType: "audio/pcm;rate=16000" } } }));
+    try {
+      this.socket.send(JSON.stringify({ realtimeInput: { audio: { data, mimeType: "audio/pcm;rate=16000" } } }));
+    } catch {
+      const socket = this.socket;
+      this.socket = null;
+      this.ready = false;
+      clearTimeout(this.setupTimer);
+      clearTimeout(this.stableTimer);
+      clearTimeout(this.rotateTimer);
+      socket?.close(1000);
+      this.frames.push(data);
+      if (this.frames.length > 20) this.frames.shift();
+      this.retry();
+    }
   }
 
   private clearTimers() {
@@ -113,18 +127,21 @@ export class GeminiSession {
     if (!this.active) return;
     const epoch = ++this.epoch;
     this.options.onState(this.attempts || this.handle ? "reconnecting" : "connecting", "");
+    this.setupTimer = setTimeout(() => {
+      if (!this.active || epoch !== this.epoch) return;
+      this.epoch++;
+      const socket = this.socket;
+      this.socket = null;
+      this.ready = false;
+      socket?.close(1000);
+      this.retry();
+    }, 20000);
     try {
       const { token, model } = await this.options.getToken();
       if (!this.active || epoch !== this.epoch) return;
       const socket = new WebSocket(`${GEMINI_LIVE_WS}?access_token=${encodeURIComponent(token)}`);
       this.socket = socket;
       this.ready = false;
-      this.setupTimer = setTimeout(() => {
-        if (this.socket !== socket || !this.active) return;
-        this.socket = null;
-        socket.close(1000);
-        this.retry();
-      }, 15000);
       socket.onopen = () => {
         if (this.socket !== socket || !this.active) return;
         socket.send(JSON.stringify({ setup: {
@@ -190,8 +207,14 @@ export class GeminiSession {
           this.fatal("Gemini ปฏิเสธการเชื่อมต่อ กรุณาตรวจสิทธิ์และโควตาก่อนเริ่มใหม่");
         } else this.retry();
       };
-    } catch {
-      if (this.active && epoch === this.epoch) this.retry();
+    } catch (error) {
+      if (!this.active || epoch !== this.epoch) return;
+      clearTimeout(this.setupTimer);
+      const message = error instanceof Error ? error.message : "";
+      const terminal = [GEMINI_TOKEN_ERRORS.missing, GEMINI_TOKEN_ERRORS.access,
+        GEMINI_TOKEN_ERRORS.quota, GEMINI_TOKEN_ERRORS.invalid].find((known) => known === message);
+      if (terminal) this.fatal(terminal);
+      else this.retry();
     }
   }
 }

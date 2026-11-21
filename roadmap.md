@@ -1,5 +1,7 @@
 # Live subtitle broadcast
 
+- [x] Sweep translation continuity, keyboard scope, room/source navigation, sender cleanup and provider failures; verified all director tabs, real resumed translation, late Presenter captions and room-close cleanup. Existing account settings and records preserved; cross-device video delivery remains unverified.
+
 - [x] Stabilize Gemini Live audio startup, reconnection and session continuity; verified real microphone translation, forced-disconnect recovery, tab switching and Stop.
 - [x] Simplify the screen-sharing page with preparation, crop confirmation and live states; sender flow and desktop/mobile previews verified. Headless receiver video remained blank, so cross-device picture delivery remains unverified.
 

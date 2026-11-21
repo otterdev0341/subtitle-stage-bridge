@@ -40,5 +40,7 @@ use the editor.
 - Profile reads must be restricted by database policy to the authenticated user's own ID; account display names are private, not a shared directory.
 - Room closing uses the shared CloseRoomDialog in both room-list views and the director page so confirmation and pending/error behavior stay consistent.
 - Gemini Live connection lifecycle is managed by GeminiSession with in-memory resumption, bounded retries and setup-gated audio; keep microphone capture mounted during transport handovers and release it on Stop or terminal failure.
-- Keep the translation tab force-mounted and hidden when inactive so switching director tabs does not stop the microphone or lose the live interpretation session.
+- Keep the translation tab force-mounted and hidden when inactive, scope its shortcuts to the active translation view, and wait for account settings before enabling Start so navigation cannot stop interpretation or swap languages unexpectedly.
+- Room/source identities key their media views and pending account saves are canceled on unmount so navigation and closing a room release the previous session without late updates.
+- Gemini token errors use fixed public messages; missing credentials, access denial and quota failures are terminal while transient transport failures have bounded recovery.
 - Sender presentation styles are scoped by sender-page in station.css so preparation, crop preview and live states do not alter director or presenter styling.

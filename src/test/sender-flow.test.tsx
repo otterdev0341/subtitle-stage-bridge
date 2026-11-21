@@ -39,6 +39,23 @@ afterEach(() => {
 describe.each(["presentation", "translation", "source-c", "source-d", "source-e"] as const)(
   "%s sender",
   (role) => {
+    it("unmount while joining stops the cropped stream and never revives sharing", async () => {
+      let finish: (() => void) | undefined;
+      session.start.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+      const stopTrack = vi.fn();
+      const track = { getSettings: () => ({ width: 1920, height: 1080 }), addEventListener: vi.fn(), stop: stopTrack };
+      const raw = { getVideoTracks: () => [track], getTracks: () => [track] };
+      vi.stubGlobal("navigator", { ...navigator, mediaDevices: { getDisplayMedia: vi.fn().mockResolvedValue(raw) } });
+      const view = render(<RemoteStation roomId="pending-test" role={role} />);
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "เลือกจอที่จะแชร์" })));
+      fireEvent.click(screen.getByRole("button", { name: "เริ่มส่งภาพเฉพาะส่วนนี้" }));
+      const pipeline = pipelines[0];
+      if (!pipeline) throw new Error("Expected cropped stream");
+      view.unmount();
+      await act(async () => { finish?.(); });
+      expect(pipeline.stop).toHaveBeenCalled();
+      expect(stopTrack).toHaveBeenCalled();
+    });
     it("sends nothing before crop confirmation; cancel preserves the live crop", async () => {
       const rawStop = vi.fn();
       const track = {

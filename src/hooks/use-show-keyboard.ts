@@ -10,6 +10,7 @@ export function useShowKeyboard(
 ) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
       const target = event.target instanceof Element ? event.target : document.activeElement;
       if (
         target?.closest(
