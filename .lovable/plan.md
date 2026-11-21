@@ -3,7 +3,8 @@
 ## 1. เข้าสู่ระบบ
 - หน้า "เข้าสู่ระบบ" ใหม่: ปุ่ม Google และ อีเมล + รหัสผ่าน (สมัคร / ลืมรหัสผ่าน / ตั้งรหัสใหม่)
 - เก็บชื่อที่แสดงของแต่ละคน มุมขวาบนแสดงชื่อ + ปุ่มออกจากระบบ
-- หน้าควบคุมต้องล็อกอิน ส่วนลิงก์แชร์จอและลิงก์ presenter เปิดได้ทันทีโดยไม่ต้องล็อกอิน (ถ้าคุณตอบคำถามที่ค้างไว้ต่างจากนี้ จะปรับตาม)
+- ต้องล็อกอินทุกหน้า รวมลิงก์แชร์จอและลิงก์ presenter (เปิดลิงก์แล้วจะพาไปล็อกอินก่อน แล้วกลับมาที่ลิงก์เดิมอัตโนมัติ)
+- เครื่องที่แชร์จอใช้บัญชีใดก็ได้ที่ล็อกอินแล้ว (หรือบัญชีเดียวกับคุณ)
 
 ## 2. ห้องของฉัน
 - หน้าแรกหลังล็อกอิน: รายการห้องของฉัน, สร้างห้องใหม่ (ตั้งชื่อได้), เปลี่ยนชื่อ, ลบ
@@ -28,6 +29,6 @@
 ## รายละเอียดทางเทคนิค
 - Auth: Lovable Cloud, Google (broker) + email; ตาราง profiles (display_name) + trigger สร้างอัตโนมัติ
 - ตาราง rooms (owner_id, name, layout jsonb, hold jsonb, translation jsonb {source, target, glossary}) และ templates (owner_id, name, layout jsonb) — RLS เจ้าของเท่านั้น
-- ย้าย room.$roomId director view ไปใต้ _authenticated (/control/$roomId); ลิงก์ source/presenter อยู่ public เหมือนเดิม, signaling Realtime เดิมไม่เปลี่ยน; ห้องหน้าเดิมที่ไม่มีเจ้าของให้ "รับเป็นห้องของฉัน" ได้
+- ย้าย room.$roomId director view ไปใต้ _authenticated (/control/$roomId); ลิงก์ source/presenter ก็ย้ายใต้ _authenticated พร้อม redirect กลับหลังล็อกอิน; ช่อง Realtime จำกัดเฉพาะผู้ล็อกอิน, signaling Realtime เดิมไม่เปลี่ยน; ห้องหน้าเดิมที่ไม่มีเจ้าของให้ "รับเป็นห้องของฉัน" ได้
 - Gemini Live: server function ออก ephemeral token (GEMINI_API_KEY อยู่ฝั่ง server), เบราว์เซอร์ต่อ WebSocket Live API ส่งเสียง PCM 16kHz, system instruction ใส่ภาษา + glossary, รับ output transcription มาเป็น caption track
 - ลบ src/lib/botnoi-live.*, test เดิม, TranslationDock iframe; อัปเดต AGENTS/ความรู้โปรเจกต์
