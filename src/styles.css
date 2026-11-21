@@ -1110,3 +1110,13 @@
 /* Sign-in button on dark hero/aside */
 .relay-hero header button, .relay-auth-aside button { background: transparent; border-color: oklch(0.45 0.04 152); color: var(--relay-canvas-text); }
 .relay-hero header button:hover, .relay-auth-aside button:hover { background: oklch(0.3 0.04 155); color: var(--relay-canvas-text); }
+
+/* ---- Account badge (avatar + name + dropdown) ---- */
+.relay-account-badge { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 5px; border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--foreground); font-size: 13px; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
+.relay-account-badge:hover { border-color: color-mix(in oklab, var(--primary) 40%, var(--border)); box-shadow: 0 4px 14px -8px oklch(0.3 0.05 155 / 0.35); }
+.relay-account-badge .relay-account-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--foreground); }
+.relay-account-chevron { color: var(--muted-foreground); }
+.relay-account-badge.is-inverse { background: oklch(0.28 0.04 155); border-color: oklch(0.42 0.04 152); color: var(--relay-canvas-text); }
+.relay-account-badge.is-inverse .relay-account-name { color: var(--relay-canvas-text); }
+.relay-account-badge.is-inverse .relay-account-chevron { color: oklch(0.7 0.03 150); }
+.relay-account-badge.is-inverse:hover { border-color: oklch(0.55 0.05 150); box-shadow: none; }
